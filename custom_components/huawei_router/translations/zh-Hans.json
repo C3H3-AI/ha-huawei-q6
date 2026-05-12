@@ -62,6 +62,101 @@
             },
             "packet_upload_speed": {
                 "name": "数据包上传速度"
+            },
+            "router_lan_ip": {
+                "name": "路由器 IP 地址"
+            },
+            "router_ip": {
+                "name": "IP 地址"
+            },
+            "router_mac": {
+                "name": "MAC 地址"
+            },
+            "connection_type": {
+                "name": "连接类型"
+            },
+            "signal_strength": {
+                "name": "信号强度"
+            },
+            "connection_rate": {
+                "name": "连接速率"
+            },
+            "frequency": {
+                "name": "WiFi频段"
+            },
+            "dev_brands": {
+                "name": "设备厂商"
+            },
+            "icon_type": {
+                "name": "设备类型"
+            },
+            "tx_data": {
+                "name": "发送流量"
+            },
+            "rx_data": {
+                "name": "接收流量"
+            },
+            "parent_control": {
+                "name": "家长控制"
+            },
+            "connected_via": {
+                "name": "连接至"
+            },
+            "ip_address": {
+                "name": "IP地址"
+            },
+            "mac_address": {
+                "name": "MAC地址"
+            }
+        },
+        "switch": {
+            "wifi_access": {
+                "name": "Wi-Fi访问"
+            },
+            "nfc": {
+                "name": "NFC"
+            },
+            "fast_roaming": {
+                "name": "快速漫游"
+            },
+            "twt": {
+                "name": "目标唤醒时间"
+            },
+            "port_mapping": {
+                "name": "端口映射"
+            },
+            "url_filter": {
+                "name": "网站过滤"
+            },
+            "time_control": {
+                "name": "访问时间控制"
+            },
+            "wifi_2g": {
+                "name": "2.4GHz Wi-Fi"
+            },
+            "wifi_5g": {
+                "name": "5GHz Wi-Fi"
+            },
+            "wifi_guest": {
+                "name": "访客Wi-Fi"
+            },
+            "access_control": {
+                "name": "Wi-Fi访问控制"
+            }
+        },
+        "button": {
+            "restart": {
+                "name": "重启"
+            }
+        },
+        "select": {
+            "wifi_filter_mode": {
+                "name": "Wi-Fi过滤模式"
+            }
+        },
+        "binary_sensor": {
+            "device_tracker": {
+                "name": "设备追踪"
             }
         }
     },
