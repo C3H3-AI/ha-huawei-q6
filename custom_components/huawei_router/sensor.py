@@ -276,7 +276,7 @@ async def async_setup_entry(
                     function_uid="sensor_wan_status",
                     function_name="WAN状态",
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -292,7 +292,7 @@ async def async_setup_entry(
                     function_uid="sensor_wan_ip",
                     function_name="WAN IP地址",
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -308,7 +308,7 @@ async def async_setup_entry(
                     function_uid="sensor_wan_ipv6",
                     function_name="WAN IPv6地址",
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -325,7 +325,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_IP,
                     function_name="路由器 IP 地址",
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -341,7 +341,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_MODEL,
                     function_name=_FUNCTION_DISPLAYED_NAME_MODEL,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "model",
             )
@@ -357,7 +357,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_SERIAL_NUMBER,
                     function_name=_FUNCTION_DISPLAYED_NAME_SERIAL_NUMBER,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "serial_number",
             )
@@ -373,7 +373,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_SOFTWARE_VERSION,
                     function_name=_FUNCTION_DISPLAYED_NAME_SOFTWARE_VERSION,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "software_version",
             )
@@ -389,7 +389,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_HARDWARE_VERSION,
                     function_name=_FUNCTION_DISPLAYED_NAME_HARDWARE_VERSION,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "hardware_version",
             )
@@ -405,7 +405,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_HARMONY_VERSION,
                     function_name=_FUNCTION_DISPLAYED_NAME_HARMONY_VERSION,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "harmony_version",
             )
@@ -422,7 +422,7 @@ async def async_setup_entry(
                     function_uid=_FUNCTION_UID_MAC,
                     function_name=_FUNCTION_DISPLAYED_NAME_MAC,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
                 "mac_address",
             )
@@ -442,7 +442,7 @@ async def async_setup_entry(
                     state_class=SensorStateClass.MEASUREMENT,
                     suggested_display_precision=1,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -461,7 +461,7 @@ async def async_setup_entry(
                     state_class=SensorStateClass.MEASUREMENT,
                     suggested_display_precision=1,
                     device_mac=None,
-                    device_name=coordinator.primary_router_name,
+                    device_name=None,
                 ),
             )
         )
@@ -511,7 +511,7 @@ async def async_setup_entry(
                         suggested_unit_of_measurement=su,
                         suggested_display_precision=sp,
                         device_mac=None,
-                        device_name=coordinator.primary_router_name,
+                        device_name=None,
                     ),
                 )
             )

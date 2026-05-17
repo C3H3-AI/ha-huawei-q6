@@ -933,6 +933,10 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self._router_infos.get(device_mac or _PRIMARY_ROUTER_IDENTITY)
 
+    def get_primary_router_mac(self) -> MAC_ADDR | None:
+        """Get primary router MAC address."""
+        return self._primary_router_mac
+
 
 
     def get_wan_info(self) -> HuaweiConnectionInfo | None:
