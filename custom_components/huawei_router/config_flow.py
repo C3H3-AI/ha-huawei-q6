@@ -116,7 +116,7 @@ class HuaweiControllerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 
-    VERSION = 6
+    VERSION = 7
 
 
 

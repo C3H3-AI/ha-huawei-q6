@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-
+import asyncio
+import json
 
 from datetime import timedelta
 
@@ -40,9 +41,9 @@ from homeassistant.const import (
 
 from homeassistant.core import HomeAssistant, callback, CALLBACK_TYPE
 
-from homeassistant.helpers import entity_registry
-
 from homeassistant.helpers import device_registry as dr
+
+from homeassistant.helpers import entity_registry
 
 from homeassistant.helpers.entity import DeviceInfo
 
@@ -605,13 +606,14 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize HuaweiController."""
 
         self._is_initial_update: bool = True
-        self._associated_devices: set[str] = set()
 
         self._logger = logging.getLogger(f"{__name__} ({config_entry.data[CONF_NAME]})")
 
         self._is_unloaded: bool = False
 
         self._is_repeater: bool = False
+        self._sonoff_storage_cache: dict[str, str] | None = None
+        self._sonoff_cache_tick: int = 0
 
         self._integration_options: HuaweiIntegrationOptions = integration_options
 
@@ -646,8 +648,8 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
 
         self._connected_devices: dict[MAC_ADDR, ConnectedDevice] = {}
+
         self._wan_info: HuaweiConnectionInfo | None = None
-        self._zones: list[ZoneInfo] = []
 
 
 
@@ -752,36 +754,12 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
 
     @property
+
     def cfg_host(self) -> str:
+
         """Return the host of the router."""
+
         return self.config_entry.data[CONF_HOST]
-
-    def get_primary_router_mac(self) -> MAC_ADDR | None:
-        """Get primary router MAC address from ARP table."""
-        if self._primary_router_mac is not None:
-            return self._primary_router_mac
-
-        try:
-            import subprocess
-            result = subprocess.run(
-                ['arp', '-n', self.cfg_host],
-                capture_output=True, text=True, timeout=5
-            )
-            for line in result.stdout.split('\n'):
-                if self.cfg_host in line and 'ether' in line:
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        mac = parts[2].upper()
-                        if ':' in mac or '-' in mac:
-                            self._primary_router_mac = mac
-                            self._logger.debug(
-                                "Primary router MAC from ARP: %s", self._primary_router_mac
-                            )
-                            return self._primary_router_mac
-        except Exception as ex:
-            self._logger.debug("Failed to get primary router MAC: %s", ex)
-
-        return None
 
 
 
@@ -991,103 +969,45 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         router_info = self.get_router_info(device_mac)
 
         device_name = self.primary_router_name
-        device_ip = None
-        connected_device = None
-        effective_mac = device_mac
 
         if device_mac is not None:
             connected_device = self._connected_devices.get(device_mac)
             if connected_device:
                 device_name = connected_device.name
-                device_ip = connected_device.ip_address
             else:
                 device_name = str(device_mac)
 
         if router_info:
-            if effective_mac is None and router_info.mac_address:
-                effective_mac = router_info.mac_address
-            
-            # 方式1: 从连接设备中查找匹配cfg_host的设备
-            if effective_mac is None:
-                for mac, cd in self._connected_devices.items():
-                    if cd.ip_address == self.cfg_host:
-                        effective_mac = mac
-                        self._logger.debug("get_device_info: Found main router MAC from IP match: %s", effective_mac)
-                        break
-            
-            # 方式2: 如果是主路由器(无device_mac)，查找is_router=True的设备
-            if effective_mac is None and device_mac is None:
-                for mac, cd in self._connected_devices.items():
-                    if cd.is_router:
-                        effective_mac = mac
-                        self._logger.debug("get_device_info: Found main router MAC from is_router: %s", effective_mac)
-                        break
-            
-            # 方式3: 如果是主路由器，查找名称包含"router"或"网关"的设备
-            if effective_mac is None and device_mac is None:
-                for mac, cd in self._connected_devices.items():
-                    if cd.name and ("router" in cd.name.lower() or "网关" in cd.name or "Gateway" in cd.name):
-                        effective_mac = mac
-                        self._logger.debug("get_device_info: Found main router MAC from name: %s (%s)", effective_mac, cd.name)
-                        break
-            
-            # 方式4: 从ARP表获取主路由器MAC
-            if effective_mac is None and device_mac is None:
-                effective_mac = self.get_primary_router_mac()
-                if effective_mac:
-                    self._logger.debug("get_device_info: Found main router MAC from ARP: %s", effective_mac)
-            
+            connections = set()
+            if device_mac is None and self._primary_router_mac:
+                mac = str(self._primary_router_mac).lower()
+                if ":" not in mac and len(mac) == 12:
+                    mac = ":".join(mac[i:i + 2] for i in range(0, 12, 2))
+                connections.add(("mac", mac))
             result = DeviceInfo(
                 configuration_url=self.get_configuration_url(device_mac),
                 identifiers={(DOMAIN, router_info.serial_number)},
+                connections=connections or None,
                 manufacturer=ATTR_MANUFACTURER,
                 model=router_info.model,
                 name=device_name,
                 hw_version=router_info.hardware_version,
                 sw_version=router_info.software_version,
-                serial_number=router_info.serial_number,
-                connections={("mac", str(effective_mac).lower())} if effective_mac else None,
             )
-            if device_ip:
-                result["configuration_url"] = f"http://{device_ip}"
         elif device_mac is not None:
-            # 对子路由尝试获取 RouterInfo（含序列号、型号、固件版本）
-            router_info = None
-            if connected_device and connected_device.is_router:
-                router_info = self.get_router_info(device_mac)
-
-            # 子路由优先使用序列号作为标识符，确保同一设备的不同 MAC 合并
-            if router_info and router_info.serial_number:
-                identifiers = {(DOMAIN, router_info.serial_number)}
-            else:
-                identifiers = {(DOMAIN, str(device_mac))}
-
+            mac_str = str(device_mac).upper()
+            mac_lower = str(device_mac).lower()
+            if ":" not in mac_lower and len(mac_lower) == 12:
+                mac_lower = ":".join(mac_lower[i:i + 2] for i in range(0, 12, 2))
             result = DeviceInfo(
-                identifiers=identifiers,
+                identifiers={(DOMAIN, mac_str)},
+                connections={("mac", mac_lower)},
+                manufacturer=ATTR_MANUFACTURER,
                 name=device_name,
-                connections={("mac", str(device_mac).lower())},
-                configuration_url=f"http://{device_ip}" if device_ip else None,
             )
-
-            if router_info:
-                result["manufacturer"] = ATTR_MANUFACTURER
-                result["model"] = router_info.model
-                result["hw_version"] = router_info.hardware_version
-                result["sw_version"] = router_info.software_version
-                result["serial_number"] = router_info.serial_number
-
-            if connected_device:
-                if not connected_device.is_router:
-                    dev_brands = connected_device._data.get("dev_brands")
-                    if dev_brands:
-                        result["manufacturer"] = dev_brands
-                else:
-                    if connected_device.host_name:
-                        result["hw_version"] = connected_device.host_name
         else:
             self._logger.debug("Device info not found for %s", device_mac)
             return None
-
         return result
 
 
@@ -1122,6 +1042,8 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
         await self._update_connected_devices()
 
+        await self._auto_associate_devices()
+
         await self._update_apis()
 
         await self._update_router_infos()
@@ -1142,553 +1064,10 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
         self._is_initial_update = False
 
-        await self._auto_associate_devices()
 
 
-    @suppress_update_exception("Can not update auto associate devices %s")
-    async def _auto_associate_devices(self) -> None:
-        """自动为其他集成的设备补上 MAC 连接，实现跨集成设备合并。
+    @suppress_update_exception("Can not update time control items %s")
 
-        三阶段策略：
-        1. configuration_url IP 匹配（快速，覆盖大部分本地集成）
-        2. Entity state 属性中的 IP 匹配（覆盖未设 configuration_url 的集成）
-        3. 主机名匹配（针对 Sonoff/易微联等通过名称命名的设备）
-        """
-        if not self._integration_options.auto_associate_devices:
-            return
-
-        self._logger.warning("自动关联开始: connected=%d", len(self._connected_devices))
-
-        import re
-
-        dev_reg = dr.async_get(self.hass)
-        ip_pat = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
-
-        # ============ Phase 1: configuration_url IP 匹配 ============
-        ip_to_others: dict[str, list[str]] = {}
-        for device in dev_reg.devices.values():
-            if any(i[0] == DOMAIN for i in device.identifiers):
-                continue
-            has_mac = any(c[0] == "mac" for c in device.connections)
-            if has_mac:
-                continue
-            url = device.configuration_url or ""
-            for ip in ip_pat.findall(url):
-                ip_to_others.setdefault(ip, []).append(device.id)
-
-        # ============ Phase 2: Entity state 属性 IP 扫描 ============
-        for state in self.hass.states.async_all():
-            did = None
-            er = entity_registry.async_get(self.hass)
-            entry = er.async_get(state.entity_id)
-            if entry and entry.device_id:
-                did = entry.device_id
-            if not did:
-                continue
-            device = dev_reg.devices.get(did)
-            if not device:
-                continue
-            if any(i[0] == DOMAIN for i in device.identifiers):
-                continue
-            if any(c[0] == "mac" for c in device.connections):
-                continue
-
-            for attr_val in state.attributes.values():
-                if isinstance(attr_val, str):
-                    for ip in ip_pat.findall(attr_val):
-                        ip_to_others.setdefault(ip, []).append(did)
-                        break
-
-        if not ip_to_others:
-            self._logger.warning("自动关联: 无 IP 匹配候选 (Phase1+2 均无发现)")
-            # 即使无 IP 匹配，继续 Phase 4 MAC 匹配
-        else:
-            self._logger.warning("自动关联 Phase3: 候选IP=%s", list(ip_to_others.keys()))
-
-        # ============ Phase 3: IP 匹配执行关联 ============
-        ent_reg = entity_registry.async_get(self.hass)
-        associated = 0
-
-        # 构建 IP → huawei_router device_id 映射
-        ip_to_hw: dict[str, str] = {}
-        for device in dev_reg.devices.values():
-            if not any(i[0] == DOMAIN for i in device.identifiers):
-                continue
-            url = device.configuration_url or ""
-            for ip in ip_pat.findall(url):
-                ip_to_hw[ip] = device.id
-
-        # 构建 IP → MAC 映射（从路由器已连接设备列表）
-        ip_to_mac: dict[str, str] = {}
-        for mac, cd in self._connected_devices.items():
-            ip = cd.ip_address
-            if ip:
-                ip_to_mac[ip] = mac
-
-        for ip, other_ids in ip_to_others.items():
-            hw_device_id = ip_to_hw.get(ip)
-            if not hw_device_id:
-                continue
-            hw_device = dev_reg.devices.get(hw_device_id)
-            if not hw_device:
-                continue
-
-            mac = ip_to_mac.get(ip)
-            if not mac:
-                self._logger.warning("关联跳过: IP=%s 无 MAC 信息", ip)
-                continue
-
-            self._logger.warning("自动关联 Phase3: hw[%s] IP=%s MAC=%s 匹配到 %d 个候选",
-                hw_device.name, ip, mac, len(other_ids))
-
-            for other_did in other_ids:
-                pair_key = f"{hw_device_id}:{other_did}"
-                if pair_key in self._associated_devices:
-                    continue
-
-                other = dev_reg.devices.get(other_did)
-                if not other:
-                    continue
-
-                if hw_device_id not in dev_reg.devices:
-                    self._logger.warning("关联跳过: hw_device 已不存在")
-                    break
-
-                try:
-                    # 策略：把 huawei_router 实体转移到其他集成设备
-                    # Step 1: 转移 huawei_router 实体 → 目标设备
-                    moved = 0
-                    for ent in list(ent_reg.entities.values()):
-                        if ent.device_id == hw_device_id:
-                            ent_reg.async_update_entity(
-                                ent.entity_id,
-                                device_id=other_did,
-                            )
-                            moved += 1
-
-                    # Step 2: 删除 huawei_router 设备（释放 MAC 和 identifier）
-                    dev_reg.async_remove_device(hw_device_id)
-
-                    # Step 3: 给目标设备加 MAC connection
-                    dev_reg.async_update_device(
-                        other_did,
-                        new_connections={("mac", mac.lower())},
-                    )
-
-                    # Step 4: 给目标设备加 huawei_router identifier
-                    dev_reg.async_update_device(
-                        other_did,
-                        new_identifiers={(DOMAIN, mac)},
-                    )
-
-                    self._associated_devices.add(pair_key)
-                    associated += 1
-                    self._logger.warning(
-                        "关联成功: %s (IP=%s, MAC=%s) → 转移 %d 个实体到 %s",
-                        hw_device.name, ip, mac, moved, other.name,
-                    )
-                except Exception as exc:
-                    self._logger.warning(
-                        "关联失败 %s <-> %s: %s",
-                        hw_device.name, other.name, exc,
-                    )
-
-                if hw_device_id not in dev_reg.devices:
-                    break
-
-            if hw_device_id not in dev_reg.devices:
-                for other_ip in list(ip_to_hw.keys()):
-                    if ip_to_hw[other_ip] == hw_device_id:
-                        del ip_to_hw[other_ip]
-
-        # ============ Phase 4: 从 identifier 提取 MAC 匹配 ============
-        # 很多集成（miot、broadlink 等）在 identifier 中嵌入了 MAC 地址
-        mac_pat = re.compile(
-            r"(?:[0-9A-Fa-f]{2}[:-]){5}(?:[0-9A-Fa-f]{2})"
-        )
-
-        # 构建 MAC → huawei_router device_id 映射（从已连接设备）
-        mac_to_hw: dict[str, str] = {}
-        for device in dev_reg.devices.values():
-            if not any(i[0] == DOMAIN for i in device.identifiers):
-                continue
-            for conn_type, conn_val in device.connections:
-                if conn_type == "mac":
-                    mac_to_hw[conn_val.lower()] = device.id
-                    break
-
-        self._logger.warning("自动关联 Phase4: mac_to_hw 有 %d 个条目, 扫描 %d 个非 hw 设备",
-            len(mac_to_hw), sum(1 for d in dev_reg.devices.values()
-                if not any(i[0] == DOMAIN for i in d.identifiers)
-                and not any(c[0] == "mac" for c in d.connections)))
-
-        for device in list(dev_reg.devices.values()):
-            if any(i[0] == DOMAIN for i in device.identifiers):
-                continue
-            if any(c[0] == "mac" for c in device.connections):
-                continue
-
-            # 从 identifier 中提取 MAC
-            found_mac = None
-            for ident in device.identifiers:
-                if isinstance(ident, (list, tuple)) and len(ident) > 1:
-                    for val in ident[1:]:
-                        if isinstance(val, str):
-                            m = mac_pat.search(val)
-                            if m:
-                                found_mac = m.group(0).lower()
-                                break
-                if found_mac:
-                    break
-
-            if not found_mac:
-                continue
-
-            self._logger.warning("自动关联 Phase4: 设备[%s] identifier 含 MAC=%s",
-                device.name, found_mac)
-
-            hw_device_id = mac_to_hw.get(found_mac)
-            if not hw_device_id:
-                continue
-
-            pair_key = f"{hw_device_id}:{device.id}"
-            if pair_key in self._associated_devices:
-                continue
-
-            hw_device = dev_reg.devices.get(hw_device_id)
-            if not hw_device:
-                continue
-
-            self._logger.warning("自动关联 Phase4: hw[%s] MAC=%s 匹配到 %s",
-                hw_device.name, found_mac, device.name)
-
-            try:
-                # 策略：把其他集成的实体和 identifier 合并到 huawei_router 设备
-                # 这样重启后 async_get_or_create 能自动匹配
-                moved = 0
-                for ent in list(ent_reg.entities.values()):
-                    if ent.device_id == device.id:
-                        ent_reg.async_update_entity(
-                            ent.entity_id,
-                            device_id=hw_device_id,
-                        )
-                        moved += 1
-
-                # 先删除其他集成的空设备（释放 identifier）
-                dev_reg.async_remove_device(device.id)
-
-                # 再把其他集成的 identifier 加到 huawei_router 设备
-                existing_idents = set(hw_device.identifiers)
-                other_idents = set(device.identifiers)
-                dev_reg.async_update_device(
-                    hw_device_id,
-                    new_identifiers=existing_idents | other_idents,
-                )
-
-                self._associated_devices.add(pair_key)
-                associated += 1
-                self._logger.warning(
-                    "关联成功: %s (MAC=%s) 吸收 %s, 转移 %d 个实体",
-                    hw_device.name, found_mac, device.name, moved,
-                )
-            except Exception as exc:
-                self._logger.warning(
-                    "关联失败 %s <-> %s: %s",
-                    hw_device.name, device.name, exc,
-                )
-
-        if associated:
-            self._logger.warning("自动关联: %d 组设备已合并", associated)
-
-        return
-
-        # Phase 5: 从 Sonoff 存储文件提取 MAC（Sonoff 的 MAC 在 extra 字段中）
-        try:
-            import json
-            from pathlib import Path
-            
-            # 查找 Sonoff 存储文件
-            storage_path = Path("/config/.storage")
-            sonoff_files = list(storage_path.glob("sonoff/*.json"))
-            
-            if sonoff_files:
-                sonoff_file = sonoff_files[0]
-                with open(sonoff_file, 'r') as f:
-                    sonoff_data = json.load(f)
-                
-                devices_data = sonoff_data.get('data', [])
-                self._logger.warning("自动关联 Phase5: 找到 %d 个 Sonoff 设备", len(devices_data))
-                
-                # 先建立 deviceid -> mac 的映射
-                deviceid_to_mac = {}
-                for dev in devices_data:
-                    mac = dev.get('extra', {}).get('mac', '').lower()
-                    deviceid = dev.get('deviceid', '')
-                    if mac and mac != '00:00:00:00:00:00' and deviceid:
-                        deviceid_to_mac[deviceid] = mac
-
-                # 从 ARP 表获取 MAC -> IP 映射（回退方案）
-                arp_mac_to_ip: dict[str, str] = {}
-                try:
-                    with open("/proc/net/arp") as f:
-                        for line in f:
-                            parts = line.split()
-                            if len(parts) >= 4:
-                                ip, mac = parts[0], parts[3]
-                                if mac != "00:00:00:00:00:00" and mac != "HWtype":
-                                    arp_mac_to_ip[mac.lower()] = ip
-                except Exception:
-                    pass
-
-                # 优先从 hass.data 获取 Sonoff 运行时 host（Zeroconf 发现后填充）
-                deviceid_to_ip: dict[str, str] = {}
-                sonoff_registries = self.hass.data.get("sonoff", {})
-                self._logger.warning("自动关联 Phase5: hass.data[sonoff] 有 %d 个 registry, keys=%s",
-                    len(sonoff_registries), list(sonoff_registries.keys())[:3])
-                total_devices_in_registry = 0
-                total_with_host = 0
-                for registry in sonoff_registries.values():
-                    total_devices_in_registry += len(registry.devices)
-                    for did, xdev in registry.devices.items():
-                        host = xdev.get("host", "")
-                        if host:
-                            total_with_host += 1
-                            ip = host.split(":")[0] if ":" in host else host
-                            deviceid_to_ip[did] = ip
-                self._logger.warning("自动关联 Phase5: registry 共 %d 设备, 有 host=%d, 提取 IP=%d",
-                    total_devices_in_registry, total_with_host, len(deviceid_to_ip))
-
-                # 回退：从 ARP 表 + Sonoff extra.mac 补充未获取到的
-                for dev in devices_data:
-                    mac = dev.get('extra', {}).get('mac', '').lower()
-                    deviceid = dev.get('deviceid', '')
-                    if deviceid and deviceid not in deviceid_to_ip:
-                        if mac in arp_mac_to_ip:
-                            deviceid_to_ip[deviceid] = arp_mac_to_ip[mac]
-                self._logger.warning("自动关联 Phase5: 合并后 deviceid_to_ip=%d",
-                    len(deviceid_to_ip))
-
-                # 从路由器已连接设备构建 IP -> MAC 映射
-                ip_to_mac: dict[str, str] = {}
-                for mac, cd in self._connected_devices.items():
-                    ip = cd.ip_address
-                    if ip:
-                        ip_to_mac[ip] = mac
-
-                self._logger.warning("自动关联 Phase5: deviceid_to_ip=%d, ip_to_mac=%d",
-                    len(deviceid_to_ip), len(ip_to_mac))
-
-                # 遍历所有 Sonoff 设备
-                sonoff_total = 0
-                sonoff_matched_registry = 0
-                sonoff_matched_coordinator = 0
-                sonoff_matched_ip = 0
-                sonoff_no_mac = 0
-                sonoff_mac_not_in_hw = 0
-                for device in list(dev_reg.devices.values()):
-                    if not any(i[0] == "sonoff" for i in device.identifiers):
-                        continue
-                    sonoff_total += 1
-                    
-                    # 获取 deviceid（从 Sonoff identifier 中提取）
-                    deviceid = None
-                    for ident in device.identifiers:
-                        if isinstance(ident, (list, tuple)) and len(ident) >= 2 and ident[0] == "sonoff":
-                            deviceid = str(ident[1])
-                            break
-
-                    # 获取 MAC：优先从已有连接，其次从 Sonoff 存储文件
-                    mac = None
-                    for conn_type, conn_val in device.connections:
-                        if conn_type == "mac":
-                            mac = conn_val.lower()
-                            break
-                    
-                    if not mac:
-                        if deviceid:
-                            mac = deviceid_to_mac.get(deviceid)
-                    
-                    if not mac:
-                        sonoff_no_mac += 1
-                        continue
-                    
-                    # 检查是否能匹配到 huawei_router 设备
-                    hw_device_id = mac_to_hw.get(mac)
-                    
-                    if hw_device_id:
-                        # 可以直接合并
-                        pair_key = f"{hw_device_id}:{device.id}"
-                        if pair_key in self._associated_devices:
-                            continue
-                        
-                        hw_device = dev_reg.devices.get(hw_device_id)
-                        if not hw_device:
-                            continue
-                        
-                        self._logger.warning("自动关联 Phase5: hw[%s] MAC=%s 匹配到 Sonoff[%s] deviceid=%s",
-                            hw_device.name, mac, device.name, deviceid)
-                        
-                        try:
-                            moved = 0
-                            for ent in list(ent_reg.entities.values()):
-                                if ent.device_id == device.id:
-                                    ent_reg.async_update_entity(
-                                        ent.entity_id,
-                                        device_id=hw_device_id,
-                                    )
-                                    moved += 1
-                            
-                            dev_reg.async_remove_device(device.id)
-                            
-                            existing_idents = set(hw_device.identifiers)
-                            other_idents = set(device.identifiers)
-                            dev_reg.async_update_device(
-                                hw_device_id,
-                                new_identifiers=existing_idents | other_idents,
-                            )
-                            
-                            self._associated_devices.add(pair_key)
-                            associated += 1
-                            sonoff_matched_registry += 1
-                            self._logger.warning(
-                                "关联成功: %s (MAC=%s) 吸收 Sonoff[%s], 转移 %d 个实体",
-                                hw_device.name, mac, device.name, moved,
-                            )
-                        except Exception as exc:
-                            self._logger.warning(
-                                "关联失败 %s <-> Sonoff[%s]: %s",
-                                hw_device.name, device.name, exc,
-                            )
-                    else:
-                        # mac_to_hw 没找到，尝试从 _connected_devices 直接匹配
-                        # _connected_devices 包含所有设备（含非活跃），而注册表只有活跃设备
-                        hw_from_coordinator = self._connected_devices.get(mac)
-                        if hw_from_coordinator:
-                            # 动态创建注册表条目
-                            device_info = self.get_device_info(mac)
-                            if device_info:
-                                try:
-                                    hw_device = dev_reg.async_get_or_create(
-                                        config_entry_id=self._config.entry_id,
-                                        **device_info,
-                                    )
-                                    hw_device_id = hw_device.id
-                                    pair_key = f"{hw_device_id}:{device.id}"
-                                    if pair_key not in self._associated_devices:
-                                        moved = 0
-                                        for ent in list(ent_reg.entities.values()):
-                                            if ent.device_id == device.id:
-                                                ent_reg.async_update_entity(
-                                                    ent.entity_id,
-                                                    device_id=hw_device_id,
-                                                )
-                                                moved += 1
-
-                                        dev_reg.async_remove_device(device.id)
-
-                                        existing_idents = set(hw_device.identifiers)
-                                        other_idents = set(device.identifiers)
-                                        dev_reg.async_update_device(
-                                            hw_device_id,
-                                            new_identifiers=existing_idents | other_idents,
-                                        )
-
-                                        self._associated_devices.add(pair_key)
-                                        associated += 1
-                                        sonoff_matched_coordinator += 1
-                                        self._logger.warning(
-                                            "关联成功: %s (MAC=%s) 吸收 Sonoff[%s], 转移 %d 个实体",
-                                            hw_device.name, mac, device.name, moved,
-                                        )
-                                        continue
-                                except Exception as exc:
-                                    self._logger.warning(
-                                        "动态创建注册表条目失败 MAC=%s: %s", mac, exc,
-                                    )
-
-                        # MAC 匹配失败，尝试 IP 匹配
-                        ip_matched = False
-                        if deviceid and deviceid in deviceid_to_ip:
-                            sonoff_ip = deviceid_to_ip[deviceid]
-                            matched_mac = ip_to_mac.get(sonoff_ip)
-                            if matched_mac:
-                                hw_from_ip = self._connected_devices.get(matched_mac)
-                                if hw_from_ip:
-                                    device_info = self.get_device_info(matched_mac)
-                                    if device_info:
-                                        try:
-                                            hw_device = dev_reg.async_get_or_create(
-                                                config_entry_id=self._config.entry_id,
-                                                **device_info,
-                                            )
-                                            hw_device_id = hw_device.id
-                                            pair_key = f"{hw_device_id}:{device.id}"
-                                            if pair_key not in self._associated_devices:
-                                                moved = 0
-                                                for ent in list(ent_reg.entities.values()):
-                                                    if ent.device_id == device.id:
-                                                        ent_reg.async_update_entity(
-                                                            ent.entity_id,
-                                                            device_id=hw_device_id,
-                                                        )
-                                                        moved += 1
-
-                                                dev_reg.async_remove_device(device.id)
-
-                                                existing_idents = set(hw_device.identifiers)
-                                                other_idents = set(device.identifiers)
-                                                dev_reg.async_update_device(
-                                                    hw_device_id,
-                                                    new_identifiers=existing_idents | other_idents,
-                                                )
-
-                                                self._associated_devices.add(pair_key)
-                                                associated += 1
-                                                sonoff_matched_ip += 1
-                                                ip_matched = True
-                                                self._logger.warning(
-                                                    "关联成功: %s (IP=%s MAC=%s) 吸收 Sonoff[%s], 转移 %d 个实体",
-                                                    hw_device.name, sonoff_ip, matched_mac,
-                                                    device.name, moved,
-                                                )
-                                        except Exception as exc:
-                                            self._logger.warning(
-                                                "IP 匹配创建注册表条目失败 IP=%s MAC=%s: %s",
-                                                sonoff_ip, matched_mac, exc,
-                                            )
-
-                        if ip_matched:
-                            continue
-
-                        # 仍不能匹配，给 Sonoff 设备添加 MAC 连接
-                        sonoff_mac_not_in_hw += 1
-                        try:
-                            current_conns = set(device.connections)
-                            new_conn = ("mac", mac)
-                            if new_conn not in current_conns:
-                                dev_reg.async_update_device(
-                                    device.id,
-                                    new_connections={new_conn},
-                                )
-                                self._logger.warning(
-                                    "自动关联 Phase5: 给 Sonoff[%s] 添加 MAC=%s 连接",
-                                    device.name, mac,
-                                )
-                        except Exception as exc:
-                            self._logger.warning(
-                                "给 Sonoff[%s] 添加 MAC 失败: %s",
-                                device.name, exc,
-                            )
-                self._logger.warning(
-                    "自动关联 Phase5 汇总: 注册表%d个Sonoff, 无MAC=%d, 注册表匹配=%d, 协调器匹配=%d, IP匹配=%d, MAC不在HW=%d",
-                    sonoff_total, sonoff_no_mac, sonoff_matched_registry,
-                    sonoff_matched_coordinator, sonoff_matched_ip, sonoff_mac_not_in_hw,
-                )
-        except Exception as exc:
-            self._logger.warning("自动关联 Phase5 初始化失败: %s", exc)
-
-        if associated:
-            self._logger.warning("自动关联: %d 组设备已合并", associated)
     async def _update_time_control(self) -> None:
 
 
@@ -1850,18 +1229,9 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         self._logger.debug("Port mappings updated")
 
 
-
-    @suppress_update_exception("Can not update repeater state %s")
-
     async def _update_repeater_state(self) -> None:
-
-        self._logger.debug("Updating repeater state")
-
-        self._is_repeater = await self.primary_router_api.get_is_repeater()
-
-        self._logger.debug("Repeater state updated: %s", self._is_repeater)
-
-
+        # Q6网线版等设备无此接口，直接假设不是repeater
+        self._is_repeater = False
 
     @suppress_update_exception("Can not update zones %s")
 
@@ -1996,52 +1366,22 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
 
         @callback
-
         def on_router_added(device_mac: MAC_ADDR, router: ConnectedDevice) -> None:
-
             """When a new mesh router is detected."""
+            # Q6网线版子路由无独立管理界面，不创建子路由API（避免认证风暴）
+            if not self._is_initial_update:
 
-            if device_mac not in self._apis:
+                self._events.fire_router_added(
 
-                self._logger.debug(
+                    self.primary_router_serial_number,
 
-                    "New router '%s' discovered at %s", device_mac, router.ip_address
+                    device_mac,
 
-                )
+                    router.ip_address,
 
-                router_api = HuaweiApi(
-
-                    host=router.ip_address,
-
-                    port=80,
-
-                    use_ssl=False,
-
-                    user=self._config.data[CONF_USERNAME],
-
-                    password=self._config.data[CONF_PASSWORD],
-
-                    verify_ssl=False,
+                    router.name,
 
                 )
-
-                self._apis[device_mac] = router_api
-
-
-
-                if not self._is_initial_update:
-
-                    self._events.fire_router_added(
-
-                        self.primary_router_serial_number,
-
-                        device_mac,
-
-                        router.ip_address,
-
-                        router.name,
-
-                    )
 
 
 
@@ -2587,7 +1927,27 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
             devices_topology = []
 
+        for node in devices_topology:
 
+            if node.hilink_type is None and node.mac_address is not None:
+
+                self._primary_router_mac = node.mac_address
+
+                self._logger.info("Primary router MAC from topology: %s", self._primary_router_mac)
+
+                break
+
+        if self._primary_router_mac is None:
+
+            for device in devices_data:
+
+                if device.is_router and not device.get_raw_value("IsSlave"):
+
+                    self._primary_router_mac = device.mac_address
+
+                    self._logger.info("Primary router MAC from HostInfo: %s", self._primary_router_mac)
+
+                    break
 
         # recursively search all HiLink routers with connected devices
 
@@ -2948,13 +2308,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     upload_rate=get_readable_rate(device_data.upload_rate),
                     download_rate=get_readable_rate(device_data.download_rate),
                     uptime=device_data.uptime,
-                    connection_rate=device_data._data.get("rate"),
-                    frequency=device_data._data.get("Frequency"),
-                    dev_brands=device_data._data.get("DevBrands"),
-                    icon_type=device_data._data.get("IconType"),
-                    tx_kbytes=device_data._data.get("TxKBytes"),
-                    rx_kbytes=device_data._data.get("RxKBytes"),
-                    parent_control=device_data._data.get("ParentControl"),
                 )
 
             else:
@@ -2976,16 +2329,11 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     interface_type=interface_type,
 
                     is_guest=device_data.is_guest,
+
                     is_hilink=device_data.is_hilink,
+
                     is_router=device_data.is_router,
-                    connected_via_id=connected_via.get("id"),
-                    connection_rate=device_data._data.get("rate"),
-                    frequency=device_data._data.get("Frequency"),
-                    dev_brands=device_data._data.get("DevBrands"),
-                    icon_type=device_data._data.get("IconType"),
-                    tx_kbytes=device_data._data.get("TxKBytes"),
-                    rx_kbytes=device_data._data.get("RxKBytes"),
-                    parent_control=device_data._data.get("ParentControl"),
+
                 )
 
 
@@ -3309,9 +2657,338 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
 
     # ---------------------------
+    #   _get_sonoff_device_ips
+    # ---------------------------
+    def _get_sonoff_device_ips_from_hass_data(self) -> dict[str, str]:
+        """从 hass.data['sonoff'] 获取 device_id → IP 映射（实时，零 IO）。
 
+        hass.data["sonoff"] 结构: {entry_id: XRegistry, ...}
+        XRegistry.devices: {deviceid: {"host": "IP:Port", "name": "设备名", ...}, ...}
+        """
+        result: dict[str, str] = {}
+        sonoff_data = self.hass.data.get("sonoff")
+        if not sonoff_data:
+            return result
+
+        for registry in sonoff_data.values():
+            devices = getattr(registry, "devices", None)
+            if not devices:
+                continue
+            for did, xdev in devices.items():
+                host = ""
+                if isinstance(xdev, dict):
+                    host = xdev.get("host", "")
+                elif hasattr(xdev, "host"):
+                    host = xdev.host or ""
+                if host:
+                    ip = host.split(":")[0] if ":" in host else host
+                    result[did] = ip
+
+        return result
+
+    def _get_sonoff_device_name(self, device_id: str) -> str | None:
+        """从 hass.data['sonoff'] 获取 Sonoff 设备的原始名称。"""
+        sonoff_data = self.hass.data.get("sonoff")
+        if not sonoff_data:
+            return None
+
+        for registry in sonoff_data.values():
+            devices = getattr(registry, "devices", None)
+            if not devices:
+                continue
+            if device_id in devices:
+                xdev = devices[device_id]
+                if isinstance(xdev, dict):
+                    return xdev.get("name")
+                elif hasattr(xdev, "name"):
+                    return xdev.name
+        return None
+
+    # ---------------------------
+    #   _read_sonoff_storage
+    # ---------------------------
+    def _load_json_sync(self, filepath: str) -> dict:
+        with open(filepath, encoding="utf-8") as f:
+            return json.load(f)
+
+    async def _read_sonoff_storage_ips(self) -> dict[str, str]:
+        """从 Sonoff 存储文件提取 device_id → IP 映射（回退数据源）。
+
+        数据源: /config/.storage/sonoff/*.json
+        字段: extra.host = "IP:Port"
+        """
+        import os
+
+        config_dir = self.hass.config.config_dir
+        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
+
+        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
+            return {}
+
+        result: dict[str, str] = {}
+
+        try:
+            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
+        except OSError:
+            return {}
+
+        for filename in filenames:
+            if not filename.endswith(".json"):
+                continue
+
+            filepath = os.path.join(sonoff_dir, filename)
+
+            try:
+                data = await asyncio.to_thread(self._load_json_sync, filepath)
+            except Exception:
+                continue
+
+            for device in data.get("data", []):
+                device_id = device.get("deviceid")
+                extra = device.get("extra") or {}
+                host = extra.get("host", "")
+                if device_id and host:
+                    ip = host.split(":")[0] if ":" in host else host
+                    result[device_id] = ip
+
+        return result
+
+    async def _get_sonoff_storage_name(self, device_id: str) -> str | None:
+        """从 Sonoff 存储文件获取设备名称。
+
+        数据源: /config/.storage/sonoff/*.json
+        字段: name
+        """
+        import os
+
+        config_dir = self.hass.config.config_dir
+        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
+
+        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
+            return None
+
+        try:
+            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
+        except OSError:
+            return None
+
+        for filename in filenames:
+            if not filename.endswith(".json"):
+                continue
+
+            filepath = os.path.join(sonoff_dir, filename)
+
+            try:
+                data = await asyncio.to_thread(self._load_json_sync, filepath)
+            except Exception:
+                continue
+
+            for device in data.get("data", []):
+                if device.get("deviceid") == device_id:
+                    return device.get("name")
+
+        return None
+
+    async def _restore_sonoff_device_names(self, dev_reg) -> None:
+        """从 Sonoff 存储文件恢复所有 Sonoff 设备的原始名称。
+
+        华为路由器集成添加时可能覆盖了 Sonoff 设备的名称，需要恢复。
+        """
+        import os
+
+        config_dir = self.hass.config.config_dir
+        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
+
+        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
+            return
+
+        try:
+            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
+        except OSError:
+            return
+
+        device_names: dict[str, str] = {}
+        for filename in filenames:
+            if not filename.endswith(".json"):
+                continue
+
+            filepath = os.path.join(sonoff_dir, filename)
+
+            try:
+                data = await asyncio.to_thread(self._load_json_sync, filepath)
+            except Exception:
+                continue
+
+            for device in data.get("data", []):
+                device_id = device.get("deviceid")
+                name = device.get("name")
+                if device_id and name:
+                    device_names[device_id] = name
+
+        restored = 0
+        for device in dev_reg.devices.values():
+            if not any(i[0] == "sonoff" for i in device.identifiers):
+                continue
+
+            for id_ in device.identifiers:
+                if id_[0] != "sonoff":
+                    continue
+                device_id = id_[1]
+                original_name = device_names.get(device_id)
+                if original_name and device.name != original_name:
+                    dev_reg.async_update_device(
+                        device.id,
+                        name_by_user=original_name,
+                    )
+                    restored += 1
+
+        if restored > 0:
+            self._logger.info("Restored %d Sonoff device names", restored)
+
+    # ---------------------------
+    #   _auto_associate_devices
+    # ---------------------------
+    @suppress_update_exception("Can not auto associate devices: %s")
+    async def _auto_associate_devices(self) -> None:
+        """自动将 Sonoff 设备与华为路由器设备合并。
+
+        策略:
+            1. 通过 IP 桥接找到 Sonoff device_id 对应的 MAC
+            2. 在 device_registry 中找到华为路由器创建的同 MAC 设备
+            3. 将华为路由器设备的实体（WiFi开关、device_tracker）迁移到 Sonoff 设备
+            4. 删除空的华为路由器设备
+            5. 合并 identifiers，确保华为路由器集成仍能找到设备
+
+        这样 Sonoff 设备卡片上就会同时显示:
+            - Sonoff 的开关/传感器实体
+            - 华为路由器的 WiFi 开关和 device_tracker 实体
+        """
+        if not self._integration_options.auto_associate_devices:
+            return
+
+        deviceid_to_ip = self._get_sonoff_device_ips_from_hass_data()
+
+        self._sonoff_cache_tick += 1
+        if (not deviceid_to_ip and self._sonoff_cache_tick >= 20) or self._sonoff_storage_cache is None:
+            self._sonoff_storage_cache = await self._read_sonoff_storage_ips()
+            self._sonoff_cache_tick = 0
+
+        for did, ip in self._sonoff_storage_cache.items():
+            if did not in deviceid_to_ip:
+                deviceid_to_ip[did] = ip
+
+        if not deviceid_to_ip:
+            return
+
+        ip_to_mac: dict[str, str] = {}
+        for mac, device in self._connected_devices.items():
+            if device.ip_address:
+                ip_to_mac[device.ip_address] = mac.lower()
+
+        dev_reg = dr.async_get(self.hass)
+        ent_reg = entity_registry.async_get(self.hass)
+        linked = 0
+        merged = 0
+        skipped = 0
+
+        for device_id, ip in deviceid_to_ip.items():
+            mac = ip_to_mac.get(ip)
+            if not mac:
+                skipped += 1
+                continue
+
+            sonoff_device = dev_reg.async_get_device(
+                identifiers={("sonoff", device_id)}
+            )
+            if not sonoff_device:
+                continue
+
+            existing_macs = {
+                c[1] for c in sonoff_device.connections if c[0] == "mac"
+            }
+            if mac not in existing_macs:
+                dev_reg.async_update_device(
+                    sonoff_device.id,
+                    new_connections={("mac", mac)},
+                )
+                linked += 1
+
+            huawei_device = dev_reg.async_get_device(
+                identifiers={(DOMAIN, mac.upper())}
+            )
+            if not huawei_device or huawei_device.id == sonoff_device.id:
+                continue
+
+            sonoff_original_name = self._get_sonoff_device_name(device_id)
+
+            if sonoff_original_name and sonoff_original_name != sonoff_device.name:
+                dev_reg.async_update_device(
+                    sonoff_device.id,
+                    name_by_user=sonoff_original_name,
+                )
+
+            huawei_entities = entity_registry.async_entries_for_device(
+                ent_reg, huawei_device.id
+            )
+            for ent in huawei_entities:
+                ent_reg.async_update_entity(ent.entity_id, device_id=sonoff_device.id)
+
+            existing_ids = {id_[0] for id_ in sonoff_device.identifiers}
+            for id_ in huawei_device.identifiers:
+                if id_[0] not in existing_ids:
+                    dev_reg.async_update_device(
+                        sonoff_device.id,
+                        new_identifiers={id_},
+                    )
+
+            dev_reg.async_remove_device(huawei_device.id)
+            merged += 1
+
+        await self._restore_sonoff_device_names(dev_reg)
+
+        if linked > 0 or merged > 0 or skipped > 0:
+            self._logger.info(
+                "Sonoff auto-associate: linked %d, merged %d, skipped %d",
+                linked,
+                merged,
+                skipped,
+            )
+
+        orphan_fixed = 0
+        config_entry_id = self.config_entry.entry_id
+        for ent in entity_registry.async_entries_for_config_entry(
+            ent_reg, config_entry_id
+        ):
+            if not ent.entity_id.startswith("device_tracker.") or ent.device_id:
+                continue
+            uid = ent.unique_id or ""
+            parts = uid.split("_")
+            mac_part = parts[-1] if ":" in parts[-1] else ""
+            if not mac_part:
+                continue
+            mac_upper = mac_part.upper()
+            mac_lower = mac_upper.lower()
+            device_entry = dev_reg.async_get_device(
+                identifiers={(DOMAIN, mac_upper)}
+            )
+            if not device_entry:
+                device_entry = dev_reg.async_get_or_create(
+                    config_entry_id=config_entry_id,
+                    identifiers={(DOMAIN, mac_upper)},
+                    connections={("mac", mac_lower)},
+                    manufacturer=ATTR_MANUFACTURER,
+                    name=mac_upper,
+                )
+            ent_reg.async_update_entity(ent.entity_id, device_id=device_entry.id)
+            orphan_fixed += 1
+
+        if orphan_fixed > 0:
+            self._logger.info(
+                "Fixed %d orphan device_tracker entities", orphan_fixed
+            )
+
+    # ---------------------------
     #   async_subscribe_event
-
     # ---------------------------
 
     @callback

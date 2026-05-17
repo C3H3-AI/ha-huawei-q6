@@ -552,11 +552,11 @@ def watch_for_additional_routers(
                     er.async_remove(entity_entry.entity_id)
                     _LOGGER.debug("Cleanup offline device entity: %s", entity_entry.entity_id)
 
-    # 为活跃的非路由器设备显式创建设备注册表条目
+    # 为所有非路由器设备创建设备注册表条目（包括离线设备，确保 device_tracker 有关联）
     from homeassistant.helpers import device_registry as dr_mod
     dr = dr_mod.async_get(coordinator.hass)
     for mac, device in coordinator.connected_devices.items():
-        if not device.is_active or device.is_router:
+        if device.is_router:
             continue
         device_info = coordinator.get_device_info(mac)
         if device_info:

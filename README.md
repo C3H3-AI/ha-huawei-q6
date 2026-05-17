@@ -57,6 +57,15 @@ Home Assistant 自定义集成，用于控制华为 Q6 路由器（基于 vmakee
 3. 输入路由器的 IP 地址、用户名和密码
 4. 点击提交
 
+## 更新日志
+
+### v1.10.0
+
+- **修复主路由重启按键缺失问题**：华为 Q6 网线版主路由之前没有重启按键，现在已修复
+- **清理冗余代码**：移除注释掉的子路由 API 创建逻辑，精简 update_coordinator.py
+- **移除工具脚本**：删除 check_ha.py、deploy_to_ha.py、upload_*.py 等开发辅助脚本
+- **代码整理**：清理 button.py，分离主路由和子路由按键创建逻辑
+
 ## 基于
 
 本集成基于 [vmakeev/huawei_mesh_router](https://github.com/vmakeev/huawei_mesh_router) 修改而来。

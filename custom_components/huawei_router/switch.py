@@ -490,6 +490,11 @@ def watch_for_wireless_devices(coordinator, config_entry, async_add_entities):
     def coordinator_updated() -> None:
         """Update the status of the device."""
         if is_wifi_switches_enabled:
+            if coordinator._is_initial_update:
+                # 初始化阶段跳过：不建立基线，不创建设备开关
+                # 等后续更新周期 _is_initial_update 变为 False 后，
+                # look_for_changes 首次运行会发现所有设备为"新增"，逐步创建开关
+                return
             device_watcher.look_for_changes(on_wireless_device_added,
                 on_wireless_device_removed if skip_offline else None)
 
@@ -1258,7 +1263,6 @@ class HuaweiDeviceAccessSwitch(HuaweiSwitch):
 
         super().__init__(coordinator, EmulatedSwitch.DEVICE_ACCESS, device.mac)
 
-        self._attr_device_info = None
 
 
 
@@ -1448,7 +1452,7 @@ class HuaweiPortMappingSwitch(HuaweiSwitch):
 
         )
 
-        self._attr_device_info = None
+        self._attr_device_info = coordinator.get_device_info()
 
 
 

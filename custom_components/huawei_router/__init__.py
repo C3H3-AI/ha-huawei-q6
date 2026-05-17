@@ -11,11 +11,16 @@ from homeassistant.helpers.storage import Store
 
 from .client.huaweiapi import HuaweiApi
 from .const import (
+    DEFAULT_DEVICE_TRACKER,
     DEFAULT_DEVICE_TRACKER_ZONES,
+    DEFAULT_DEVICES_TAGS,
     DEFAULT_PORT_MAPPING_SWITCHES,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_URL_FILTER_SWITCHES,
     DEFAULT_EVENT_ENTITIES,
+    DEFAULT_TIME_CONTROL_SWITCHES,
+    DEFAULT_SKIP_OFFLINE_DEVICES,
+    DEFAULT_AUTO_ASSOCIATE_DEVICES,
     DOMAIN,
     OPT_DEVICE_TRACKER,
     OPT_DEVICE_TRACKER_ZONES,
@@ -25,6 +30,9 @@ from .const import (
     OPT_ROUTER_CLIENTS_SENSORS,
     OPT_URL_FILTER_SWITCHES,
     OPT_WIFI_ACCESS_SWITCHES,
+    OPT_TIME_CONTROL_SWITCHES,
+    OPT_SKIP_OFFLINE_DEVICES,
+    OPT_AUTO_ASSOCIATE_DEVICES,
     PLATFORMS,
     STORAGE_VERSION,
 )
@@ -181,6 +189,13 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
         _LOGGER.debug("Migrating to version 6")
         updated_options[OPT_PORT_MAPPING_SWITCHES] = DEFAULT_PORT_MAPPING_SWITCHES
         config_entry.version = 6
+
+    if config_entry.version == 6:
+        _LOGGER.debug("Migrating to version 7")
+        updated_options[OPT_TIME_CONTROL_SWITCHES] = DEFAULT_TIME_CONTROL_SWITCHES
+        updated_options[OPT_SKIP_OFFLINE_DEVICES] = DEFAULT_SKIP_OFFLINE_DEVICES
+        updated_options[OPT_AUTO_ASSOCIATE_DEVICES] = DEFAULT_AUTO_ASSOCIATE_DEVICES
+        config_entry.version = 7
 
     hass.config_entries.async_update_entry(
         config_entry, data=updated_data, options=updated_options
