@@ -147,6 +147,135 @@
 
 ---
 
+## Sonoff 设备自动关联（核心技术实现）
+
+本集成提供**智能设备合并**功能，自动将华为路由器发现的设备与 Sonoff/eWeLink 集成的设备关联合并，实现统一设备管理。
+
+### 功能概述
+
+当同时安装了 **Sonoff 集成** 和 **华为路由器集成** 时：
+- Sonoff 设备卡片上会同时显示 Sonoff 的开关/传感器 + 华为路由器的 WiFi 开关和设备追踪
+- 避免同一物理设备在 Home Assistant 中显示为两个独立设备
+
+### 技术实现原理
+
+#### 1. 双数据源设计
+
+| 数据源 | 优先级 | 获取方式 | 说明 |
+|--------|--------|----------|------|
+| `hass.data['sonoff']` | 高 | 运行时内存读取 | 从 Sonoff 集成实时获取 device_id → IP 映射，零 IO 开销 |
+| `/config/.storage/sonoff/*.json` | 低 | 文件读取 | 回退数据源，定期缓存（20次更新周期） |
+
+**代码实现**：[update_coordinator.py#L2662-L2759](file:///D:/ai-hub/integrations/huawei_router/custom_components/huawei_router/update_coordinator.py#L2662-L2759)
+
+#### 2. 关联匹配流程
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Sonoff 自动关联流程                           │
+├─────────────────────────────────────────────────────────────────┤
+│  1. 构建 IP → MAC 映射表                                         │
+│     从华为路由器 connected_devices 获取所有在线设备的 IP 和 MAC    │
+│                                                                 │
+│  2. 获取 Sonoff device_id → IP 映射                              │
+│     优先从 hass.data['sonoff'] 获取（实时）                       │
+│     若失败则从存储文件读取（回退）                                 │
+│                                                                 │
+│  3. IP 桥接匹配                                                  │
+│     Sonoff device_id → IP → MAC → 华为路由器设备                  │
+│                                                                 │
+│  4. 设备合并操作                                                 │
+│     - 更新 Sonoff 设备的 connections，添加 MAC                   │
+│     - 将华为路由器实体迁移到 Sonoff 设备                          │
+│     - 合并 identifiers，保留华为路由器标识                        │
+│     - 删除空的华为路由器设备                                      │
+│     - 恢复 Sonoff 设备原始名称（防止被覆盖）                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**代码实现**：[update_coordinator.py#L2851-L2945](file:///D:/ai-hub/integrations/huawei_router/custom_components/huawei_router/update_coordinator.py#L2851-L2945)
+
+#### 3. 核心数据结构
+
+```python
+# hass.data["sonoff"] 结构
+{
+    entry_id: XRegistry,  # Sonoff 集成的注册表对象
+    ...
+}
+
+# Sonoff 存储文件结构（/config/.storage/sonoff/*.json）
+{
+    "deviceid": "100123456789",
+    "params": {
+        "localip": "192.168.3.100",
+        ...
+    },
+    ...
+}
+```
+
+#### 4. 合并策略
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| 1 | 更新 connections | 将 MAC 添加到 Sonoff 设备的 connections |
+| 2 | 迁移实体 | 将华为路由器创建的 WiFi 开关、device_tracker 等实体迁移到 Sonoff 设备 |
+| 3 | 合并 identifiers | 添加 `(huawei_router, MAC)` 到 Sonoff 设备的 identifiers |
+| 4 | 删除空设备 | 删除华为路由器创建的空设备 |
+| 5 | 恢复名称 | 从 Sonoff 存储文件恢复原始设备名称 |
+
+#### 5. 性能优化
+
+- **缓存机制**：存储文件读取结果缓存，每 20 次更新周期刷新一次
+- **零 IO 优先**：优先使用 `hass.data['sonoff']` 的内存数据
+- **跳过已关联**：已合并的设备不会重复处理
+- **异常处理**：`suppress_update_exception` 装饰器确保关联失败不影响主流程
+
+### 使用场景
+
+#### 场景1：Sonoff 智能开关
+
+用户有一个 Sonoff 智能开关，同时连接到华为路由器：
+- **合并前**：两个独立设备卡片
+  - Sonoff 设备：显示开关实体
+  - 华为路由器设备：显示 WiFi 开关、信号强度、流量传感器
+- **合并后**：一个统一设备卡片
+  - 包含 Sonoff 的开关实体
+  - 包含华为路由器的 WiFi 开关、信号强度、流量传感器
+
+#### 场景2：自动化联动
+
+结合两个集成的数据创建更智能的自动化：
+
+```yaml
+automation:
+  - trigger:
+      # 当设备连接到特定子路由时
+      platform: event
+      event_type: huawei_router.device_connected
+      event_data:
+        router_name: "客厅子路由"
+    condition:
+      # 且该设备是 Sonoff 智能插座
+      condition: device
+      device_id: device.sonoff_smart_plug
+    action:
+      - service: notify.persistent_notification
+        data:
+          message: "智能插座已连接到客厅路由"
+```
+
+### 配置选项
+
+| 选项 | 默认 | 说明 |
+|------|------|------|
+| 自动关联设备 | ✅ | 是否启用 Sonoff 设备自动关联功能 |
+
+> 在集成配置页面可调整此选项。
+
+---
+
 ## 配置选项
 
 添加集成后，点击配置可调整以下选项：
@@ -164,6 +293,7 @@
 | 时间控制开关 | ✅ | 是否显示时间控制开关 |
 | 跳过离线设备 | ✅ | 离线设备的实体是否自动清理 |
 | 事件实体 | ✅ | 是否启用设备连接事件 |
+| 自动关联设备 | ✅ | 是否自动将 Sonoff 设备与华为路由器设备合并 |
 
 ---
 
