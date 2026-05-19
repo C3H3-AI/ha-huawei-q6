@@ -683,6 +683,8 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
         self._primary_router_mac: MAC_ADDR | None = None
 
+        self._primary_router_actual_name: str | None = None
+
         self._switch_states: dict[Switch | EmulatedSwitch | str, bool] = {}
 
         self._select_states: dict[Select | str, str] = {}
@@ -718,10 +720,11 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
 
 
     @property
-
     def primary_router_name(self) -> str:
-
-        return self.name
+        router_info = self._router_infos.get(_PRIMARY_ROUTER_IDENTITY)
+        if router_info and router_info.name:
+            return router_info.name
+        return self._primary_router_actual_name or self.name
 
 
 
@@ -951,13 +954,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
             return device.uptime
         return None
 
-    def get_upnp_entity_state(self, entity_name: str) -> str | None:
-        """Get state from UPnP entity by entity name suffix."""
-        from homeassistant.core import HomeAssistant
-        hass: HomeAssistant = self.hass
-        state = hass.states.get(entity_name)
-        return state.state if state else None
-
     def get_configuration_url(self, device_mac: MAC_ADDR | None = None) -> str:
 
         """Return the router's configuration URL."""
@@ -988,9 +984,12 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                 if ":" not in mac and len(mac) == 12:
                     mac = ":".join(mac[i:i + 2] for i in range(0, 12, 2))
                 connections.add(("mac", mac))
+            identifiers = {(DOMAIN, router_info.serial_number)}
+            if device_mac is None:
+                identifiers.add(("upnp_host", self.cfg_host))
             result = DeviceInfo(
                 configuration_url=self.get_configuration_url(device_mac),
-                identifiers={(DOMAIN, router_info.serial_number)},
+                identifiers=identifiers,
                 connections=connections or None,
                 manufacturer=ATTR_MANUFACTURER,
                 model=router_info.model,
@@ -1952,6 +1951,30 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     self._logger.info("Primary router MAC from HostInfo: %s", self._primary_router_mac)
 
                     break
+
+        if self._primary_router_mac is not None:
+
+            primary_device = next(
+
+                (
+
+                    item
+
+                    for item in devices_data
+
+                    if item.mac_address == self._primary_router_mac
+
+                ),
+
+                None,
+
+            )
+
+            if primary_device and primary_device.actual_name:
+
+                self._primary_router_actual_name = primary_device.actual_name
+
+                self._logger.info("Primary router actual name: %s", self._primary_router_actual_name)
 
         # recursively search all HiLink routers with connected devices
 

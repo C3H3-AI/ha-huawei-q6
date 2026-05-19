@@ -7,6 +7,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation
+from homeassistant.helpers.device_registry import (
+    DeviceEntry,
+    async_get as async_get_device_registry,
+)
 from homeassistant.helpers.storage import Store
 
 from .client.huaweiapi import HuaweiApi
@@ -109,9 +113,37 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     set_loaded_platforms(hass, config_entry, loaded_platforms)
     await hass.config_entries.async_forward_entry_setups(config_entry, loaded_platforms)
 
+    await _async_update_primary_router_name(hass, config_entry, coordinator)
+
     await async_setup_services(hass, config_entry)
     return True
 
+
+async def _async_update_primary_router_name(hass, config_entry, coordinator) -> None:
+    """更新主路由设备名称为路由器API返回的真实名称。"""
+    actual_name = coordinator.primary_router_name
+    config_name = config_entry.data.get("name", "")
+    if not actual_name or actual_name == config_name:
+        return
+
+    router_info = coordinator.get_router_info(None)
+    if not router_info:
+        return
+
+    primary_serial = router_info.serial_number
+
+    device_reg = async_get_device_registry(hass)
+    for device in device_reg.devices.values():
+        if config_entry.entry_id not in device.config_entries:
+            continue
+        id_tuples = set(device.identifiers)
+        if (DOMAIN, primary_serial) in id_tuples and device.name_by_user is None:
+            if device.name != actual_name:
+                device_reg.async_update_device(device.id, name=actual_name)
+                _LOGGER.info(
+                    "主路由设备名称已更新: %s -> %s", device.name, actual_name
+                )
+            break
 
 # ---------------------------
 #   update_listener
