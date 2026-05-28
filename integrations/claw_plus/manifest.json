@@ -1,0 +1,13 @@
+{
+  "domain": "claw_plus",
+  "name": "Claw Dashboard Config",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/ha-china/ha_claw",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "codeowners": [],
+  "dependencies": [],
+  "after_dependencies": ["claw_assistant"],
+  "requirements": []
+}

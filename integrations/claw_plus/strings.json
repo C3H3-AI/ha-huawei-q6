@@ -1,0 +1,13 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Only one instance allowed"
+    },
+    "step": {
+      "user": {
+        "description": "Claw Dashboard Config enables configuring Claw Assistant from the dashboard.\n\nClick Submit to add this integration.",
+        "title": "Claw Dashboard Config"
+      }
+    }
+  }
+}

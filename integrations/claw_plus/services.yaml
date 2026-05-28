@@ -1,0 +1,18 @@
+set_option:
+  name: Set Option
+  description: Update a Claw Assistant configuration option
+  fields:
+    key:
+      name: Key
+      description: Config option key
+      required: true
+      example: "enable_web_search"
+      selector:
+        text:
+    value:
+      name: Value
+      description: Config option value
+      required: true
+      example: true
+      selector:
+        object:
