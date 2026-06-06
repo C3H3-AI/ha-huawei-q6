@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     return True
 
 async def _register_panel(hass: HomeAssistant) -> None:
-    """Register the HACS Vision panel — embed_iframe=False so HA header/sidebar stays visible on mobile."""
+    """Register the HACS Vision panel — same as HACS official: built-in panel + embed_iframe."""
     from homeassistant.components.frontend import async_register_built_in_panel
     from .const import VERSION
     try:
@@ -60,9 +60,8 @@ async def _register_panel(hass: HomeAssistant) -> None:
         config={
             "_panel_custom": {
                 "name": "hacs-vision-panel",
-                "embed_iframe": False,
+                "embed_iframe": True,
                 "trust_external": False,
-                "module": True,
                 "js_url": f"/api/hacs_vision/static/panel.js?v={VERSION}",
             }
         },
