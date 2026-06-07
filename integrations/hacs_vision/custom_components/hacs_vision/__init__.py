@@ -5,13 +5,17 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.storage import Store
 import voluptuous as vol
 
-from .const import DOMAIN, PANEL_TITLE, PANEL_ICON
+from .const import DOMAIN, PANEL_TITLE, PANEL_ICON, VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
+
+URL_PATH = "hacs-vision"
+STORE_KEY = "hacs_vision"
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
@@ -42,31 +46,92 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     return True
 
 async def _register_panel(hass: HomeAssistant) -> None:
-    """Register the HACS Vision panel — same as HACS official: built-in panel + embed_iframe."""
-    from homeassistant.components.frontend import async_register_built_in_panel
-    from .const import VERSION
-    try:
-        from homeassistant.components import frontend
-        frontend.async_remove_panel(hass, "hacs-vision")
-        _LOGGER.debug("Removed existing hacs-vision panel before re-registration")
-    except Exception:
-        pass
+    """Register HACS Vision as a Lovelace dashboard + iframe card.
+
+    Uses a Lovelace storage dashboard with an iframe card pointing to our
+    static HTML page.  This avoids the phone sidebar-toggle issue of
+    ``panel_custom`` + ``embed_iframe``, because HA's native Lovelace
+    panel always preserves the mobile header and sidebar hamburger button.
+    """
+    from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
+
+    # 1. Remove any old panel_custom registration
+    for path in (URL_PATH,):
+        try:
+            async_remove_panel(hass, path)
+        except Exception:
+            pass
+
+    # 2. Create/update the Lovelace dashboard entry in .storage/lovelace_dashboards
+    dash_store = Store(hass, 1, "lovelace_dashboards")
+    raw = await dash_store.async_load()
+    dashboards = raw if raw else {"items": []}
+    existing_ids = {d.get("id") for d in dashboards.get("items", [])}
+
+    if STORE_KEY not in existing_ids:
+        dashboards.setdefault("items", []).append({
+            "id": STORE_KEY,
+            "title": PANEL_TITLE,
+            "url_path": URL_PATH,
+            "icon": PANEL_ICON,
+            "show_in_sidebar": True,
+            "require_admin": True,
+            "mode": "storage",
+        })
+        await dash_store.async_save(dashboards)
+        _LOGGER.debug("Created lovelace dashboard entry: %s", STORE_KEY)
+
+    # 3. Create/update the dashboard config with an iframe card
+    config_store = Store(hass, 1, f"lovelace.{STORE_KEY}")
+    iframe_url = f"/api/hacs_vision/static/index.html?v={VERSION}"
+    config_body = {
+        "views": [{
+            "title": PANEL_TITLE,
+            "path": "main",
+            "type": "panel",
+            "cards": [{
+                "type": "iframe",
+                "url": iframe_url,
+                "aspect_ratio": "100%",
+            }],
+        }]
+    }
+    await config_store.async_save({"config": config_body})
+    _LOGGER.debug("Created lovelace dashboard config with iframe -> %s", iframe_url)
+
+    # 4. Register sidebar panel
     async_register_built_in_panel(
         hass,
-        component_name="custom",
+        component_name="lovelace",
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
-        frontend_url_path="hacs-vision",
-        config={
-            "_panel_custom": {
-                "name": "hacs-vision-panel",
-                "embed_iframe": True,
-                "trust_external": False,
-                "js_url": f"/api/hacs_vision/static/panel.js?v={VERSION}",
-            }
-        },
+        config={"mode": "storage"},
+        frontend_url_path=URL_PATH,
         require_admin=True,
+        show_in_sidebar=True,
+        update=True,
     )
+    _LOGGER.debug("Registered sidebar panel: %s", URL_PATH)
+
+    # 5. Register in LOVELACE_DATA runtime registry if available
+    try:
+        from homeassistant.components.lovelace import LOVELACE_DATA
+        from homeassistant.components.lovelace.dashboard import LovelaceStorage
+        if LOVELACE_DATA in hass.data:
+            lovelace_data = hass.data[LOVELACE_DATA]
+            if URL_PATH not in lovelace_data.dashboards:
+                lovelace_data.dashboards[URL_PATH] = LovelaceStorage(hass, {
+                    "id": STORE_KEY,
+                    "url_path": URL_PATH,
+                    "title": PANEL_TITLE,
+                    "icon": PANEL_ICON,
+                    "show_in_sidebar": True,
+                    "require_admin": True,
+                })
+                _LOGGER.debug("Registered LovelaceStorage for: %s", URL_PATH)
+    except Exception:
+        pass
+
 
 def _register_services(hass: HomeAssistant, operator) -> None:
     """Register HA services for HACS Vision."""
@@ -106,15 +171,46 @@ def _register_services(hass: HomeAssistant, operator) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     """Unload HACS Vision."""
     from homeassistant.components import frontend
+
+    # 1. Remove sidebar panel
     try:
-        frontend.async_remove_panel(hass, "hacs-vision")
+        frontend.async_remove_panel(hass, URL_PATH)
     except Exception:
         pass
 
-    # Remove all services
+    # 2. Remove Lovelace dashboard config
+    try:
+        config_store = Store(hass, 1, f"lovelace.{STORE_KEY}")
+        await config_store.async_remove()
+        _LOGGER.debug("Removed lovelace dashboard config: %s", STORE_KEY)
+    except Exception:
+        pass
+
+    # 3. Remove dashboard entry from .storage/lovelace_dashboards
+    try:
+        dash_store = Store(hass, 1, "lovelace_dashboards")
+        raw = await dash_store.async_load()
+        if raw and "items" in raw:
+            raw["items"] = [
+                d for d in raw["items"]
+                if d.get("id") not in (STORE_KEY, URL_PATH)
+                and d.get("url_path") not in (URL_PATH,)
+            ]
+            await dash_store.async_save(raw)
+            _LOGGER.debug("Removed dashboard entry from lovelace_dashboards")
+    except Exception:
+        pass
+
+    # 4. Remove all services
     hass.services.async_remove(DOMAIN, "refresh")
     hass.services.async_remove(DOMAIN, "install_repository")
 
-    # Clean up data
+    # 5. Clean up data
+    try:
+        for key in (f"lovelace.{STORE_KEY}", f"lovelace.{URL_PATH}"):
+            store = Store(hass, 1, key)
+            await store.async_remove()
+    except Exception:
+        pass
     hass.data.pop(DOMAIN, None)
     return True

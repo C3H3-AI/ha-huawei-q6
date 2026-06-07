@@ -46,7 +46,7 @@ class HACSEnhancedStaticView(HomeAssistantView):
             return web.json_response({"error": "invalid_path"}, status=400)
         try:
             content = await self.hass.async_add_executor_job(self._read_file, filepath)
-            ctype = "application/javascript" if filename.endswith(".js") else "text/plain"
+            ctype = "application/javascript" if filename.endswith(".js") else "text/html" if filename.endswith(".html") else "text/plain"
             resp = web.Response(text=content, content_type=ctype)
             resp.headers["Cache-Control"] = "public, max-age=3600"
             return resp

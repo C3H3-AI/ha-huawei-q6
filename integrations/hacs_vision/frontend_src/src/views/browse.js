@@ -43,6 +43,7 @@ class BrowseView extends LitElement {
     _collapsedGroups: { type: Object, state: true },
     _filterExpanded: { type: Boolean, state: true },
     _favorites: { type: Array, state: true },
+    presetFilter: { type: String },
   };
 
   constructor() {
@@ -208,6 +209,10 @@ class BrowseView extends LitElement {
     .filter-chip.active { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
     .filter-chip .chip-count { font-size: 10px; opacity: 0.7; margin-left: 3px; }
 
+    .mini-icon { width: 14px; height: 14px; vertical-align: -2px; display: inline; flex-shrink: 0; }
+    .mini-icon.spin { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
     /* ===== Add Custom Repo ===== */
     .add-repo-form {
       margin-bottom: 14px; padding: 16px;
@@ -249,6 +254,17 @@ class BrowseView extends LitElement {
     .list-table .desc-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; }
     .list-table .name-cell { font-weight: 500; color: var(--primary-text-color); width: 100%; }
     .list-table .desc-cell { font-size: 11px; color: var(--secondary-text-color); }
+    .custom-tag-list {
+      display: inline-block; margin-top: 4px;
+      font-size: 9px; padding: 1px 6px; border-radius: 4px;
+      background: #ff6f00; color: #fff; font-weight: 700;
+    }
+    .topic-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+    .topic-chip {
+      font-size: 9px; padding: 1px 6px; border-radius: 4px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color); border: 1px solid var(--divider-color);
+    }
     .list-table tr { cursor: pointer; transition: background 0.15s; }
     .list-table tbody tr:hover { background: var(--secondary-background-color); }
 
@@ -257,6 +273,7 @@ class BrowseView extends LitElement {
       width: 32px; height: 32px; border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
       color: #fff; font-size: 14px; font-weight: 700;
+      overflow: hidden;
     }
     .list-table .num-cell { font-size: 12px; color: var(--secondary-text-color); text-align: right; }
     .list-table .ver-cell { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
@@ -379,6 +396,20 @@ class BrowseView extends LitElement {
     this.addEventListener('detail', (e) => this._handleDetail(e.detail.repo));
     this.addEventListener('readme', (e) => this._handleDetail(e.detail.repo));
     this.addEventListener('favorite', () => this._syncFavoriteCount());
+  }
+
+  willUpdate(changedProps) {
+    if (changedProps.has('presetFilter')) {
+      const filter = this.presetFilter;
+      const old = changedProps.get('presetFilter');
+      // Skip initial mount (old undefined → empty string)
+      if (old === undefined && filter === '') return;
+      this.presetFilter = '';
+      this.statusFilter = filter;
+      this.page = 1;
+      this._persistState();
+      this._load();
+    }
   }
 
   async _loadFavorites() {
@@ -657,10 +688,21 @@ class BrowseView extends LitElement {
 
     return html`
       <tr @click=${() => this._handleDetail(r)}>
-        <td class="col-icon"><div class="icon-cell" style="background:${categoryColor}">${(name || '?').charAt(0).toUpperCase()}</div></td>
-        <td class="name-cell">${name}<br><span class="desc-cell">${r.description || ''}</span></td>
+        <td class="col-icon"><div class="icon-cell" style="background:${categoryColor}">
+          ${r.domain && r.category === 'integration'
+            ? html`
+              <img src="https://brands.home-assistant.io/${r.domain}/icon.png" style="width:100%;height:100%;object-fit:cover;" @error=${e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}>
+              <span style="display:none">${(name || '?').charAt(0).toUpperCase()}</span>
+            `
+            : (name || '?').charAt(0).toUpperCase()
+          }
+        </div></td>
+        <td class="name-cell">${name}<br><span class="desc-cell">${r.description || ''}</span>
+          ${r.is_custom ? html`<span class="custom-tag-list">${t('customBadge')}</span>` : ''}
+          ${r.topics && r.topics.length ? html`<br><span class="topic-chips">${r.topics.slice(0, 4).map(t => html`<span class="topic-chip">${t}</span>`)}</span>` : ''}
+        </td>
         <td class="num-cell col-downloads">${downloads ? downloads.toLocaleString() : '-'}</td>
-        <td class="num-cell col-stars">⭐ ${typeof stars === 'number' ? stars.toLocaleString() : stars}</td>
+        <td class="num-cell col-stars"><svg viewBox="0 0 20 20" fill="#ff9800" width="14" height="14" style="vertical-align:middle;"><path d="M10 1l2.39 4.84L17.6 6.7l-3.8 3.71.9 5.26L10 13.27l-4.7 2.46.9-5.26L2.4 6.7l5.2-.86L10 1z"/></svg> ${typeof stars === 'number' ? stars.toLocaleString() : stars}</td>
         <td class="ver-cell col-last-updated">${this._formatDate(r.last_updated)}</td>
         <td class="ver-cell col-installed-ver">${isInstalled ? (r.installed_version || '-') : '-'}</td>
         <td class="ver-cell col-available-ver">${r.latest_version || '-'}</td>
@@ -670,7 +712,7 @@ class BrowseView extends LitElement {
           ${isInstalled ? html`
             ${isUpdateAvailable ? html`<button class="action-sm primary" @click=${e => { e.stopPropagation(); this._handleUpdate(r); }}>${t('update')}</button>` : ''}
           ` : html`
-            <button class="action-sm primary ${installing ? 'installing' : ''}" @click=${e => { e.stopPropagation(); this._handleInstall(r); }} ?disabled=${installing}>${installing ? '⏳' : t('install')}</button>
+            <button class="action-sm primary ${installing ? 'installing' : ''}" @click=${e => { e.stopPropagation(); this._handleInstall(r); }} ?disabled=${installing}>${installing ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>` : t('install')}</button>
           `}
         </td>
       </tr>
@@ -694,8 +736,8 @@ class BrowseView extends LitElement {
         </div>
         <div class="controls-right">
           <div class="view-toggle">
-            <button class="view-toggle-btn ${this.viewMode === 'card' ? 'active' : ''}" @click=${() => this._onViewModeChange('card')} title="${t('viewCard')}">📊</button>
-            <button class="view-toggle-btn ${this.viewMode === 'list' ? 'active' : ''}" @click=${() => this._onViewModeChange('list')} title="${t('viewList')}">📋</button>
+            <button class="view-toggle-btn ${this.viewMode === 'card' ? 'active' : ''}" @click=${() => this._onViewModeChange('card')} title="${t('viewCard')}">${t('viewCard')}</button>
+            <button class="view-toggle-btn ${this.viewMode === 'list' ? 'active' : ''}" @click=${() => this._onViewModeChange('list')} title="${t('viewList')}">${t('viewList')}</button>
           </div>
           <select class="group-select" @change=${this._onGroupChange} .value=${this.groupBy}>
             ${this.groupOptions.map(opt => html`<option value=${opt.value}>${t('groupBy')}: ${opt.label}</option>`)}

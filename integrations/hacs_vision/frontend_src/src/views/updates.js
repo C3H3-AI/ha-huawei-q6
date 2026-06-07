@@ -15,6 +15,7 @@ class UpdatesView extends LitElement {
     _changelogs: { type: Object, state: true },
     _searchText: { type: String, state: true },
     _selectedIds: { type: Object, state: true },
+    _viewMode: { type: String, state: true },
   };
 
   constructor() {
@@ -28,6 +29,8 @@ class UpdatesView extends LitElement {
     this._changelogs = {};
     this._searchText = '';
     this._selectedIds = {};
+    const saved = localStorage.getItem('hacs_vision_view_mode');
+    this._viewMode = saved || 'card';
   }
 
   static styles = [
@@ -109,6 +112,73 @@ class UpdatesView extends LitElement {
         display: inline-block; margin-top: 6px;
       }
       .changelog-preview-link:hover { text-decoration: underline; }
+
+      .mini-icon { width: 14px; height: 14px; vertical-align: -2px; display: inline; flex-shrink: 0; }
+      .mini-icon.spin { animation: spin 1s linear infinite; }
+      @keyframes spin { 100% { transform: rotate(360deg); } }
+
+      /* ===== View Mode Toggle ===== */
+      .view-toggle {
+        display: flex; border: 1px solid var(--divider-color); border-radius: 8px;
+        overflow: hidden; flex-shrink: 0;
+      }
+      .view-toggle-btn {
+        padding: 6px 10px; border: none; background: var(--card-background-color);
+        color: var(--secondary-text-color); cursor: pointer; font-size: 14px;
+        transition: all 0.2s; min-width: 36px; min-height: 36px;
+        display: flex; align-items: center; justify-content: center;
+        touch-action: manipulation;
+      }
+      .view-toggle-btn + .view-toggle-btn { border-left: 1px solid var(--divider-color); }
+      .view-toggle-btn.active { background: var(--primary-color); color: #fff; }
+      .view-toggle-btn:hover:not(.active) { color: var(--primary-color); }
+
+      /* ===== List View (HACS-style table) ===== */
+      .list-view { width: 100%; overflow-x: auto; }
+      .list-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
+      .list-table th {
+        text-align: left; padding: 10px 8px; font-size: 11px; font-weight: 600;
+        color: var(--secondary-text-color); text-transform: uppercase;
+        border-bottom: 2px solid var(--divider-color); white-space: nowrap;
+        user-select: none; letter-spacing: 0.3px;
+      }
+      .list-table td {
+        padding: 10px 8px; border-bottom: 1px solid var(--divider-color);
+        vertical-align: middle;
+      }
+      .list-table .col-icon { width: 40px; }
+      .list-table .icon-cell {
+        width: 32px; height: 32px; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; font-weight: 700;
+        overflow: hidden;
+      }
+      .list-table .name-cell {
+        font-weight: 500; color: var(--primary-text-color); width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .list-table .desc-cell {
+        font-size: 11px; color: var(--secondary-text-color);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;
+      }
+      .custom-tag-list {
+        display: inline-block; margin-top: 4px;
+        font-size: 9px; padding: 1px 6px; border-radius: 4px;
+        background: #ff6f00; color: #fff; font-weight: 700;
+      }
+      .topic-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+      .topic-chip {
+        font-size: 9px; padding: 1px 6px; border-radius: 4px;
+        background: var(--secondary-background-color);
+        color: var(--secondary-text-color); border: 1px solid var(--divider-color);
+      }
+      .list-table tr { cursor: pointer; transition: background 0.15s; }
+      .list-table tbody tr:hover { background: var(--secondary-background-color); }
+
+      .status-badge {
+        display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+      }
+      .status-badge.pending-upgrade { background: rgba(255,152,0,0.15); color: #ff9800; }
 
       .update-all-bar {
         display: flex; justify-content: flex-end; margin-bottom: 12px;
@@ -283,6 +353,85 @@ class UpdatesView extends LitElement {
     this.dispatchEvent(new CustomEvent('detail', { detail: { repo }, bubbles: true, composed: true }));
   }
 
+  _setViewMode(mode) {
+    this._viewMode = mode;
+    try { localStorage.setItem('hacs_vision_view_mode', mode); } catch {}
+  }
+
+  _getCategoryColor(cat) {
+    const colors = {
+      integration: '#1565c0', plugin: '#7b1fa2', theme: '#2e7d32',
+      python_script: '#f9a825', template: '#6a1b9a', appdaemon: '#e65100',
+      netdaemon: '#00838f', dashboard: '#f57f17',
+    };
+    return colors[cat] || '#78909c';
+  }
+
+  _renderListTable(filtered) {
+    return html`
+      <table class="list-table">
+        <thead>
+          <tr>
+            <th class="col-icon"></th>
+            <th>${t('colName') || '名称'}</th>
+            <th>${t('currentVersion')}</th>
+            <th>${t('latestVersion')}</th>
+            <th>${t('colStatus') || '状态'}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map(r => this._renderListRow(r))}
+        </tbody>
+      </table>
+    `;
+  }
+
+  _renderListRow(r) {
+    const repoId = r.id || r.full_name;
+    const isInstalling = !!this._installingIds?.[repoId];
+    const isChecked = !!this._selectedIds[repoId];
+    const name = r.manifest_name || r.name || r.full_name || '?';
+    const catColor = this._getCategoryColor(r.category);
+    const domain = r.domain;
+
+    return html`
+      <tr @click=${(e) => { if (e.target.closest('.btn') || e.target.closest('a') || e.target.closest('.checkbox')) return; this._openDetail(r); }}>
+        <td class="col-icon">
+          <div class="icon-cell" style="background:${catColor}">
+            ${domain && r.category === 'integration'
+              ? html`
+                <img src="https://brands.home-assistant.io/${domain}/icon.png" style="width:100%;height:100%;object-fit:cover;" @error=${e => { e.target.style.display='none'; e.target.nextElementSibling.style.display='flex'; }}>
+                <span style="display:none">${name.charAt(0).toUpperCase()}</span>
+              `
+              : name.charAt(0).toUpperCase()
+            }
+          </div>
+        </td>
+        <td>
+          <div class="name-cell">${name}</div>
+          ${r.description ? html`<div class="desc-cell">${r.description}</div>` : ''}
+          ${r.is_custom ? html`<span class="custom-tag-list">${t('customBadge')}</span>` : ''}
+          ${r.topics && r.topics.length ? html`<div class="topic-chips">${r.topics.slice(0, 4).map(t => html`<span class="topic-chip">${t}</span>`)}</div>` : ''}
+        </td>
+        <td style="font-size:12px;color:var(--warning-color);white-space:nowrap;">${r.installed_version || '?'}</td>
+        <td style="font-size:12px;color:var(--success-color);white-space:nowrap;">${r.latest_version || '?'}</td>
+        <td><span class="status-badge pending-upgrade">${t('statusPendingUpgrade')}</span></td>
+        <td style="white-space:nowrap;">
+          <input type="checkbox" class="checkbox" .checked=${isChecked}
+                 @click=${(e) => e.stopPropagation()}
+                 @change=${() => this._toggleSelect(repoId)} style="margin-right:6px;">
+          <button class="btn primary ${isInstalling ? 'installing' : ''}" style="padding:4px 10px;font-size:11px;"
+                  @click=${(e) => { e.stopPropagation(); this._updateOne(r); }} ?disabled=${isInstalling || this.updating}>
+            ${isInstalling
+              ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+              : html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${t('updateNow')}`}
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+
   render() {
     const filtered = this._getFiltered();
 
@@ -301,6 +450,10 @@ class UpdatesView extends LitElement {
           ${this.search ? html`
             <button class="search-clear" @click=${this._clearSearch}>✕</button>
           ` : ''}
+        </div>
+        <div class="view-toggle">
+          <button class="view-toggle-btn ${this._viewMode === 'card' ? 'active' : ''}" @click=${() => this._setViewMode('card')} title="${t('viewCard')}">${t('viewCard')}</button>
+          <button class="view-toggle-btn ${this._viewMode === 'list' ? 'active' : ''}" @click=${() => this._setViewMode('list')} title="${t('viewList')}">${t('viewList')}</button>
         </div>
       </div>
 
@@ -325,67 +478,71 @@ class UpdatesView extends LitElement {
             </label>
             <span>${t('totalPrefix')} <span class="count">${this.updates.length}</span> ${t('totalUpdates')}</span>
           </div>
-          <button class="btn" @click=${this._load}>${t('refresh')}</button>
+          <button class="btn" @click=${this._load}>
+            <svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${t('refresh')}
+          </button>
         </div>
 
         ${this.updates.length > 1 ? html`
           <div class="update-all-bar">
             <button class="update-all-btn" @click=${this._updateSelected} ?disabled=${this.updating || this._selectedCount() === 0}>
-              ⬆ ${this.updating ? t('updatingProgress') : `${t('updateAll')} (${this._selectedCount() || 0})`}
+              <svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${this.updating ? t('updatingProgress') : `${t('updateAll')} (${this._selectedCount() || 0})`}
             </button>
           </div>
         ` : ''}
 
-        <div class="grid">
-          ${filtered.map(r => {
-            const repoId = r.id || r.full_name;
-            const isInstalling = !!this._installingIds?.[repoId];
-            const changelog = this._changelogs?.[r.full_name];
-            const isChecked = !!this._selectedIds[repoId];
-            return html`
-            <div class="card" @click=${(e) => { if (e.target.closest('.btn') || e.target.closest('a') || e.target.closest('.checkbox')) return; this._openDetail(r); }}>
-              <div class="card-header">
-                <div class="card-left">
-                  <input type="checkbox" class="checkbox" .checked=${isChecked}
-                         @click=${(e) => e.stopPropagation()}
-                         @change=${() => this._toggleSelect(repoId)}>
-                  <div class="card-name">
-                    ${r.name || r.full_name}
-                    ${r.category ? html`<span class="category-badge">${r.category}</span>` : ''}
+        ${this._viewMode === 'list' ? html`
+          <div class="list-view">${this._renderListTable(filtered)}</div>
+        ` : html`
+          <div class="grid">
+            ${filtered.map(r => {
+              const repoId = r.id || r.full_name;
+              const isInstalling = !!this._installingIds?.[repoId];
+              const changelog = this._changelogs?.[r.full_name];
+              const isChecked = !!this._selectedIds[repoId];
+              return html`
+              <div class="card" @click=${(e) => { if (e.target.closest('.btn') || e.target.closest('a') || e.target.closest('.checkbox')) return; this._openDetail(r); }}>
+                <div class="card-header">
+                  <div class="card-left">
+                    <input type="checkbox" class="checkbox" .checked=${isChecked}
+                           @click=${(e) => e.stopPropagation()}
+                           @change=${() => this._toggleSelect(repoId)}>
+                    <div class="card-name">
+                      ${r.name || r.full_name}
+                      ${r.category ? html`<span class="category-badge">${r.category}</span>` : ''}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="version-row">
-                <div class="version-item">
-                  <div class="version-label">${t('currentVersion')}</div>
-                  <div class="version-value old">${r.installed_version || '?'}</div>
+                <div class="version-row">
+                  <div class="version-item">
+                    <div class="version-label">${t('currentVersion')}</div>
+                    <div class="version-value old">${r.installed_version || '?'}</div>
+                  </div>
+                  <div class="version-item">
+                    <div class="version-label">${t('latestVersion')}</div>
+                    <div class="version-value new">${r.latest_version || '?'}</div>
+                  </div>
                 </div>
-                <div class="version-item">
-                  <div class="version-label">${t('latestVersion')}</div>
-                  <div class="version-value new">${r.latest_version || '?'}</div>
-                </div>
-              </div>
-              <div class="card-desc">${r.description || ''}</div>
+                <div class="card-desc">${r.description || ''}</div>
 
-              <!-- F6: Changelog preview -->
-              ${changelog?.body ? html`
-                <div class="changelog-preview">
-                  <div class="changelog-preview-title">${t('changelogTitle')} ${changelog.tag ? html`<small>(${changelog.tag})</small>` : ''}</div>
-                  <div class="changelog-preview-body">${changelog.body}</div>
-                  <a class="changelog-preview-link" href="${changelog.url || `https://github.com/${r.full_name}/releases`}" target="_blank" rel="noopener">${t('viewFullChangelog')} →</a>
-                </div>
-              ` : ''}
+                ${changelog?.body ? html`
+                  <div class="changelog-preview">
+                    <div class="changelog-preview-title">${t('changelogTitle')} ${changelog.tag ? html`<small>(${changelog.tag})</small>` : ''}</div>
+                    <div class="changelog-preview-body">${changelog.body}</div>
+                    <a class="changelog-preview-link" href="${changelog.url || `https://github.com/${r.full_name}/releases`}" target="_blank" rel="noopener">${t('viewFullChangelog')} →</a>
+                  </div>
+                ` : ''}
 
-              <!-- F3: Progress button -->
-              <button class="btn primary ${isInstalling ? 'installing' : ''}"
-                      @click=${() => this._updateOne(r)} ?disabled=${isInstalling || this.updating}>
-                ${isInstalling
-                  ? html`⏳ ${t('updatingProgress')}`
-                  : html`⬆ ${t('updateNow')}`}
-              </button>
-            </div>
-          `;})}
-        </div>
+                <button class="btn primary ${isInstalling ? 'installing' : ''}"
+                        @click=${() => this._updateOne(r)} ?disabled=${isInstalling || this.updating}>
+                  ${isInstalling
+                    ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${t('updatingProgress')}`
+                    : html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${t('updateNow')}`}
+                </button>
+              </div>
+            `;})}
+          </div>
+        `}
       `}
     `;
   }

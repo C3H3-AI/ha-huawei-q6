@@ -64,9 +64,9 @@ const T = {
   typePython: { zh: 'Python', en: 'Python' },
   typeTemplate: { zh: '模板', en: 'Template' },
 
-  sortByStars: { zh: '⭐ 按星数', en: '⭐ By Stars' },
-  sortByUpdated: { zh: '🕐 最近更新', en: '🕐 Recently Updated' },
-  sortByName: { zh: '📄 按名称', en: '📄 By Name' },
+  sortByStars: { zh: '按星数', en: 'By Stars' },
+  sortByUpdated: { zh: '最近更新', en: 'Recently Updated' },
+  sortByName: { zh: '按名称', en: 'By Name' },
   catAll: { zh: '全部', en: 'All' },
   catIntegration: { zh: '集成', en: 'Integration' },
   catPlugin: { zh: '插件', en: 'Plugin' },
@@ -89,22 +89,22 @@ const T = {
   installed: { zh: '已安装', en: 'Installed' },
   install: { zh: '安装', en: 'Install' },
   update: { zh: '更新', en: 'Update' },
-  remove: { zh: '移除', en: 'Remove' },
+  remove: { zh: '卸载', en: 'Uninstall' },
   detail: { zh: '详情', en: 'Detail' },
   noDesc: { zh: '暂无描述', en: 'No description' },
-  favOn: { zh: '⭐ 已收藏', en: '⭐ Favorited' },
-  favOff: { zh: '☆ 收藏', en: '☆ Favorite' },
+  favOn: { zh: '已收藏', en: 'Favorited' },
+  favOff: { zh: '收藏', en: 'Favorite' },
 
   // Installed
   canUpdate: { zh: '可更新', en: 'Updatable' },
   allTypes: { zh: '全部类型', en: 'All Types' },
-  refresh: { zh: '🔄 刷新', en: '🔄 Refresh' },
+  refresh: { zh: '刷新', en: 'Refresh' },
   noInstalled: { zh: '暂无已安装仓库', en: 'No installed repositories' },
   noMatchInstalled: { zh: '没有匹配的已安装仓库', en: 'No matching installed repos' },
   totalInstalled: { zh: '个已安装仓库', en: 'installed repositories' },
-  confirmRemove: { zh: '确定要移除', en: 'Are you sure to remove' },
-  removed: { zh: '已移除', en: 'Removed' },
-  removeFailed: { zh: '移除失败', en: 'Remove failed' },
+  confirmRemove: { zh: '确定要卸载', en: 'Are you sure to uninstall' },
+  removed: { zh: '已卸载', en: 'Uninstalled' },
+  removeFailed: { zh: '卸载失败', en: 'Uninstall failed' },
   updating: { zh: '更新中...', en: 'Updating...' },
 
   // Updates
@@ -129,7 +129,7 @@ const T = {
   addRepo: { zh: '添加仓库', en: 'Add Repository' },
   addSuccess: { zh: '添加成功', en: 'Added successfully' },
   invalidRepoUrl: { zh: '无效的仓库地址，请输入 owner/repo 格式或 GitHub URL', en: 'Invalid repository URL, use owner/repo format or GitHub URL' },
-  addCustomRepo: { zh: '+ 添加自定义仓库', en: '+ Add Custom Repository' },
+  addCustomRepo: { zh: '添加自定义仓库', en: 'Add Custom Repository' },
   repoUrl: { zh: '仓库 URL (如: https://github.com/user/repo)', en: 'Repository URL (e.g. https://github.com/user/repo)' },
   add: { zh: '添加', en: 'Add' },
   cancel: { zh: '取消', en: 'Cancel' },
@@ -150,8 +150,8 @@ const T = {
   removeRenamed: { zh: '移除重命名', en: 'Remove Renamed' },
   replace: { zh: '替换', en: 'Replace' },
   viewDetail: { zh: '查看详情', en: 'View Detail' },
-  confirmRemoveArchived: { zh: '将彻底删除归档仓库（清除 HACS 全部数据记录）', en: 'Permanently delete archived repo (remove all HACS data)' },
-  confirmRemoveRenamed: { zh: '将彻底删除重命名记录（清除 HACS 全部数据记录）', en: 'Permanently remove renamed repo (clear all HACS data)' },
+  confirmRemoveArchived: { zh: '将永久清除归档仓库的全部数据记录', en: 'Permanently clear all data records for this archived repo' },
+  confirmRemoveRenamed: { zh: '将永久清除重命名记录的全部数据记录', en: 'Permanently clear all data records for this renamed repo' },
   confirmReplaceRenamed: { zh: '将替换仓库', en: 'Replace repository' },
   replaceRenamedWarning: { zh: '（将卸载旧仓库并安装新仓库）', en: ' (will uninstall old, install new)' },
   viewOnGithub: { zh: '在 GitHub 中查看', en: 'View on GitHub' },
@@ -159,21 +159,21 @@ const T = {
   // Backup
   exportBackup: { zh: '导出备份', en: 'Export Backup' },
   exportDesc: { zh: '将 HACS 配置、已安装仓库列表和自定义仓库设置导出为 JSON 文件。导出后可在新环境中导入恢复。', en: 'Export HACS config, installed repositories and custom repo settings as JSON. Can be imported in new environments.' },
-  exportBtn: { zh: '📥 导出备份', en: '📥 Export Backup' },
+  exportBtn: { zh: '导出备份', en: 'Export Backup' },
   exporting: { zh: '导出中...', en: 'Exporting...' },
   exportSuccess: { zh: '备份导出成功', en: 'Backup exported successfully' },
   exportFailed: { zh: '导出失败', en: 'Export failed' },
   importBackup: { zh: '导入备份', en: 'Import Backup' },
   importDesc: { zh: '从之前导出的 JSON 备份文件恢复 HACS 配置。注意：导入会覆盖当前配置。', en: 'Restore HACS config from a previously exported JSON backup. Note: Import will overwrite current config.' },
-  importBtn: { zh: '📤 导入备份', en: '📤 Import Backup' },
+  importBtn: { zh: '导入备份', en: 'Import Backup' },
   importing: { zh: '导入中...', en: 'Importing...' },
   importSuccess: { zh: '备份导入成功', en: 'Backup imported successfully' },
   importFailed: { zh: '导入失败', en: 'Import failed' },
   depCheck: { zh: '依赖检查', en: 'Dependency Check' },
   depDesc: { zh: '检查 HACS Vision 的系统依赖是否完整安装。', en: 'Check if HACS Vision system dependencies are fully installed.' },
-  checkDep: { zh: '🔍 检查依赖', en: '🔍 Check Dependencies' },
-  depOk: { zh: '✅ 所有依赖正常', en: '✅ All dependencies OK' },
-  depMissing: { zh: '⚠️ 部分依赖缺失', en: '⚠️ Some dependencies missing' },
+  checkDep: { zh: '检查依赖', en: 'Check Dependencies' },
+  depOk: { zh: '所有依赖正常', en: 'All dependencies OK' },
+  depMissing: { zh: '部分依赖缺失', en: 'Some dependencies missing' },
   checkFailed: { zh: '检查失败', en: 'Check failed' },
 
   // Favorites
@@ -198,7 +198,7 @@ const T = {
 
   // Connection
   connectFailed: { zh: '连接 HACS 失败', en: 'Failed to connect to HACS' },
-  waitingHA: { zh: '⏳ 等待 HA 连接...', en: '⏳ Waiting for HA connection...' },
+  waitingHA: { zh: '等待 HA 连接...', en: 'Waiting for HA connection...' },
 
   // Confirm Dialog
   confirm: { zh: '确认', en: 'Confirm' },
@@ -214,10 +214,10 @@ const T = {
   dblZoomHint: { zh: '双击放大', en: 'Double-click to expand' },
 
   // F2: Network Status
-  networkOffline: { zh: '⚠️ 网络连接已断开，请检查网络', en: '⚠️ Network disconnected — check your connection' },
-  networkRestored: { zh: '✅ 网络已恢复', en: '✅ Network restored' },
-  haRestarting: { zh: '⚠️ Home Assistant 正在重启，请稍候...', en: '⚠️ Home Assistant is restarting, please wait...' },
-  rateLimited: { zh: '⚠️ GitHub API 限流，请稍后重试', en: '⚠️ GitHub API rate limited — try again later' },
+  networkOffline: { zh: '网络连接已断开，请检查网络', en: 'Network disconnected — check your connection' },
+  networkRestored: { zh: '网络已恢复', en: 'Network restored' },
+  haRestarting: { zh: 'Home Assistant 正在重启，请稍候...', en: 'Home Assistant is restarting, please wait...' },
+  rateLimited: { zh: 'GitHub API 限流，请稍后重试', en: 'GitHub API rate limited — try again later' },
 
   // F3: Progress Indicators
   installing: { zh: '安装中…', en: 'Installing…' },
@@ -254,9 +254,6 @@ const T = {
   prerelease: { zh: '预发布', en: 'Pre-release' },
   noReleases: { zh: '暂无发布版本', en: 'No releases available' },
   publishedAt: { zh: '发布于', en: 'Published' },
-
-  // Add Custom Repo (browse inline)
-  addCustomRepo: { zh: '+ 添加仓库', en: '+ Add Repository' },
 
   // Tools
   tools: { zh: '工具', en: 'Tools' },

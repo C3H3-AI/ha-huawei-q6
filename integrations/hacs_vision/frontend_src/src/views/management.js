@@ -25,6 +25,8 @@ export class ManagementView extends LitElement {
     _renamedRefreshing: { type: Boolean },
     _depResults: { type: Object },
     _depLoading: { type: Boolean },
+    _customRepoSearch: { type: String },
+    _customRepoSort: { type: String },
   };
 
   constructor() {
@@ -44,6 +46,8 @@ export class ManagementView extends LitElement {
     this._customRepoCategory = 'integration';
     this._addingCustom = false;
     this._viewMode = 'card';
+    this._customRepoSearch = '';
+    this._customRepoSort = 'name';
     this._collapsed = {
       customRepos: false,
       archived: false,
@@ -67,6 +71,25 @@ export class ManagementView extends LitElement {
     }
     .section-title svg { width: 20px; height: 20px; color: var(--primary-color); flex-shrink: 0; }
     .section-desc { font-size: 13px; color: var(--secondary-text-color); margin-bottom: 16px; line-height: 1.6; }
+
+    /* ===== Search ===== */
+    .search { position: relative; display: flex; align-items: center; }
+    .search-icon { position: absolute; left: 10px; width: 16px; height: 16px; color: var(--secondary-text-color); pointer-events: none; }
+    .search input {
+      width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--divider-color);
+      border-radius: 10px; font-size: 13px; background: var(--card-background-color);
+      color: var(--primary-text-color); outline: none; transition: border-color 0.2s;
+      box-sizing: border-box; font-family: inherit;
+    }
+    .search input:focus { border-color: var(--primary-color); }
+    .search input::placeholder { color: var(--secondary-text-color); }
+    .edit-input {
+      padding: 8px 12px; border: 1px solid var(--divider-color);
+      border-radius: 10px; font-size: 13px; background: var(--card-background-color);
+      color: var(--primary-text-color); outline: none; transition: border-color 0.2s;
+      box-sizing: border-box; font-family: inherit;
+    }
+    .edit-input:focus { border-color: var(--primary-color); }
 
     /* ===== Collapsible ===== */
     .section-header {
@@ -108,6 +131,13 @@ export class ManagementView extends LitElement {
       cursor: pointer;
     }
     .repo-item:hover { border-color: var(--primary-color); }
+    .col-icon { flex-shrink: 0; }
+    .icon-cell {
+      width: 32px; height: 32px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 14px; font-weight: 700;
+      overflow: hidden;
+    }
     .repo-info { flex: 1; min-width: 0; }
     .repo-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
     .repo-name { color: var(--primary-text-color); font-weight: 600; font-size: 14px; }
@@ -118,6 +148,12 @@ export class ManagementView extends LitElement {
     .update-badge { color: #f44336; font-weight: 600; }
     .repo-stars { color: #f9a825; }
     .repo-desc { font-size: 12px; color: var(--secondary-text-color); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
+    .topic-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+    .topic-chip {
+      font-size: 9px; padding: 1px 6px; border-radius: 4px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color); border: 1px solid var(--divider-color);
+    }
     .repo-actions { display: flex; gap: 4px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
 
     .category-badge {
@@ -138,6 +174,7 @@ export class ManagementView extends LitElement {
       padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600;
       background: #fff3e0; color: #e65100; letter-spacing: 0.3px;
     }
+    .custom-badge-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #ff6f00; color: #fff; font-weight: 700; display: inline-flex; align-items: center; }
     .section-badge {
       display: inline-flex; align-items: center; padding: 2px 10px;
       border-radius: 10px; font-size: 11px; font-weight: 500;
@@ -168,11 +205,19 @@ export class ManagementView extends LitElement {
       display: flex; align-items: center; justify-content: center;
       font-size: 20px; font-weight: 700; color: #fff;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      overflow: hidden;
     }
     .repo-card-badge-cat {
       position: absolute; top: 10px; left: 10px;
       padding: 3px 8px; border-radius: 6px;
       font-size: 10px; font-weight: 600; color: #fff; text-transform: uppercase;
+    }
+    .repo-card-custom {
+      position: absolute; top: 10px; left: 50%;
+      transform: translateX(-50%);
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 10px; font-weight: 700; color: #fff; text-transform: uppercase;
+      background: #ff6f00; box-shadow: 0 2px 6px rgba(255,111,0,0.4);
     }
     .repo-card-actions-img {
       position: absolute; top: 10px; right: 10px; z-index: 2;
@@ -279,6 +324,10 @@ export class ManagementView extends LitElement {
     .dep-item .repo { font-weight:500;color:var(--primary-text-color);margin-bottom:4px; }
     .dep-item .missing { font-size:11px;color:#f44336; }
     .dep-ok { color:var(--success-color,#0f9d58);font-weight:500; }
+
+    .mini-icon { width: 14px; height: 14px; vertical-align: -2px; display: inline; flex-shrink: 0; }
+    .mini-icon.spin { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
 
     /* ===== Mobile ===== */
     @media (max-width: 768px) {
@@ -447,7 +496,7 @@ export class ManagementView extends LitElement {
     const fullName = this._parseRepoUrl(this._customRepoUrl);
     if (!fullName) { showToast(t('invalidRepoUrl'), 'error'); return; }
     const exists = this.customRepos.some(r => (r.full_name || r.repository) === fullName);
-    if (exists) { showToast(`⚠️ ${fullName} ${t('alreadyExists')}`, 'error'); return; }
+    if (exists) { showToast(`${fullName} ${t('alreadyExists')}`, 'error'); return; }
     this._addingCustom = true;
     try {
       const result = await api.addCustomRepo(fullName, this._customRepoCategory);
@@ -464,7 +513,7 @@ export class ManagementView extends LitElement {
   async _removeCustomRepo(repoName, category) {
     const ok = await ConfirmDialog.show(this, {
       message: `${t('confirmRemoveRepo')} ${repoName}?`,
-      confirmText: t('remove'), danger: true,
+      confirmText: t('removeRepo'), danger: true,
     });
     if (!ok) return;
     try {
@@ -487,6 +536,29 @@ export class ManagementView extends LitElement {
       detail: { repo },
       bubbles: true, composed: true,
     }));
+  }
+
+  _getFilteredCustomRepos() {
+    let repos = [...this.customRepos];
+    // Search filter
+    const search = (this._customRepoSearch || '').toLowerCase();
+    if (search) {
+      repos = repos.filter(r => {
+        const name = (r.manifest_name || r.name || r.full_name || '').toLowerCase();
+        const desc = (r.description || '').toLowerCase();
+        return name.includes(search) || desc.includes(search);
+      });
+    }
+    // Sort
+    const sort = this._customRepoSort || 'name';
+    if (sort === 'stars') {
+      repos.sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
+    } else if (sort === 'updated') {
+      repos.sort((a, b) => (b.last_updated || '').localeCompare(a.last_updated || ''));
+    } else {
+      repos.sort((a, b) => (a.manifest_name || a.name || a.full_name || '').localeCompare(b.manifest_name || b.name || b.full_name || ''));
+    }
+    return repos;
   }
 
   _getInitials(name) {
@@ -534,15 +606,19 @@ export class ManagementView extends LitElement {
       <div class="repo-card" @click=${() => this._openCardDetail(r)}>
         <div class="repo-card-img" style="background:linear-gradient(135deg, ${catColor}44 0%, ${catColor}22 100%);">
           <div class="repo-card-avatar" style="background:${catColor}">
-            ${this._getInitials(displayName)}
+            ${r.domain && r.category === 'integration' ? html`
+              <img src="https://brands.home-assistant.io/${r.domain}/icon.png" style="width:100%;height:100%;object-fit:cover;" @error=${e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}>
+              <span style="display:none">${this._getInitials(displayName)}</span>
+            ` : this._getInitials(displayName)}
           </div>
           <span class="repo-card-badge-cat" style="background:${catColor}">
             ${this._getCategoryLabel(r.category)}
           </span>
-          ${isRenamed ? html`<span class="repo-card-renamed">🔄 ${oldName}</span>` : ''}
-          ${isInstalled ? html`<span class="repo-card-installed">✅ ${t('installed')}</span>` : ''}
+          ${r.is_custom ? html`<span class="repo-card-custom">${t('customBadge')}</span>` : ''}
+          ${isRenamed ? html`<span class="repo-card-renamed"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${oldName}</span>` : ''}
+          ${isInstalled ? html`<span class="repo-card-installed"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> ${t('installed')}</span>` : ''}
           <div class="repo-card-actions-img">
-            <button class="btn-icon" @click=${(e) => { e.stopPropagation(); this._removeCustomRepo(fullName, r.category); }} title="${t('remove')}">
+            <button class="btn-icon" @click=${(e) => { e.stopPropagation(); this._removeCustomRepo(fullName, r.category); }} title="${t('removeRepo')}">
               ✕
             </button>
           </div>
@@ -551,13 +627,18 @@ export class ManagementView extends LitElement {
           <div class="name" title=${displayName}>${displayName}</div>
           <div class="fullname">${fullName}</div>
           <div class="desc">${desc || t('noDesc')}</div>
+          ${r.topics && r.topics.length ? html`
+            <div class="topic-chips" style="margin-top:6px;">
+              ${r.topics.slice(0, 3).map(t => html`<span class="topic-chip">${t}</span>`)}
+            </div>
+          ` : ''}
           <div class="meta">
             <span class="stars">
-              ⭐ ${stars > 0 ? (typeof stars === 'number' ? stars.toLocaleString() : stars) : 0}
+              <svg viewBox="0 0 20 20" fill="#ff9800" width="14" height="14"><path d="M10 1l2.39 4.84L17.6 6.7l-3.8 3.71.9 5.26L10 13.27l-4.7 2.46.9-5.26L2.4 6.7l5.2-.86L10 1z"/></svg> ${stars > 0 ? (typeof stars === 'number' ? stars.toLocaleString() : stars) : 0}
             </span>
             ${isInstalled ? html`
               <span style="font-size:10px;color:var(--secondary-text-color);">
-                📦 ${installedVer}${hasUpdate ? html` <span class="update-badge">⬆ ${latestVer}</span>` : ''}
+                <svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> ${installedVer}${hasUpdate ? html` <span class="update-badge"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${latestVer}</span>` : ''}
               </span>
             ` : html`<span class="repo-not-installed">${t('notInstalled')}</span>`}
           </div>
@@ -581,21 +662,38 @@ export class ManagementView extends LitElement {
 
     return html`
       <div class="repo-item" @click=${() => this._openCardDetail(r)}>
+        <div class="col-icon">
+          <div class="icon-cell" style="background:${this._getCategoryColor(r.category)}">
+            ${r.domain && r.category === 'integration'
+              ? html`
+                <img src="https://brands.home-assistant.io/${r.domain}/icon.png" style="width:100%;height:100%;object-fit:cover;" @error=${e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}>
+                <span style="display:none">${displayName.charAt(0).toUpperCase()}</span>
+              `
+              : displayName.charAt(0).toUpperCase()
+            }
+          </div>
+        </div>
         <div class="repo-info">
           <div class="repo-top">
             <span class="repo-name">${displayName}</span>
             <span class="category-badge ${r.category}">${this._getCategoryLabel(r.category)}</span>
-            ${isRenamed ? html`<span class="renamed-badge">🔄 ${oldName}</span>` : ''}
+            ${r.is_custom ? html`<span class="custom-badge-tag">${t('customBadge')}</span>` : ''}
+            ${isRenamed ? html`<span class="renamed-badge"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${oldName}</span>` : ''}
           </div>
           <div class="repo-meta">
             <span class="repo-fullname">${fullName}</span>
-            <span class="stars" style="color:#f9a825;">⭐ ${stars > 0 ? (typeof stars === 'number' ? stars.toLocaleString() : stars) : 0}</span>
+            <span class="stars" style="color:#f9a825;"><svg viewBox="0 0 20 20" fill="#ff9800" width="14" height="14"><path d="M10 1l2.39 4.84L17.6 6.7l-3.8 3.71.9 5.26L10 13.27l-4.7 2.46.9-5.26L2.4 6.7l5.2-.86L10 1z"/></svg> ${stars > 0 ? (typeof stars === 'number' ? stars.toLocaleString() : stars) : 0}</span>
             ${r.installed ? html`
-              <span class="repo-version">📦 ${installedVer}</span>
-              ${hasUpdate ? html`<span class="update-badge">⬆ ${latestVer}</span>` : ''}
+              <span class="repo-version"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> ${installedVer}</span>
+              ${hasUpdate ? html`<span class="update-badge"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> ${latestVer}</span>` : ''}
             ` : html`<span class="repo-not-installed">${t('notInstalled')}</span>`}
           </div>
           ${desc ? html`<div class="repo-desc">${desc}</div>` : ''}
+          ${r.topics && r.topics.length ? html`
+            <div class="topic-chips" style="margin-top:4px;">
+              ${r.topics.slice(0, 4).map(t => html`<span class="topic-chip">${t}</span>`)}
+            </div>
+          ` : ''}
         </div>
         <div class="repo-actions">
           <a class="btn btn-icon" href="https://github.com/${fullName}" target="_blank" rel="noopener" @click=${e => e.stopPropagation()} title="GitHub">
@@ -603,7 +701,9 @@ export class ManagementView extends LitElement {
           </a>
           ${isRenamed ? html`
             <button class="btn primary sm" @click=${(e) => { e.stopPropagation(); this._replaceRenamedOneClick(oldName, fullName); }} ?disabled=${this._renamedRefreshing}>
-              ${this._renamedRefreshing ? '⏳' : t('replace')}
+              ${this._renamedRefreshing
+                ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+                : t('replace')}
             </button>
             <button class="btn danger sm" @click=${(e) => { e.stopPropagation(); this._removeRenamedRepo(oldName); }} title=${t('removeRenamed')}>✕</button>
           ` : ''}
@@ -635,16 +735,29 @@ export class ManagementView extends LitElement {
           </div>
           <div class="view-toggle">
             <button class=${classMap({ active: _viewMode === 'card' })} @click=${(e) => { e.stopPropagation(); this._setViewMode('card'); }}>
-              🃏 ${t('catDashboard') || '卡片'}
+              ${t('catDashboard') || '卡片'}
             </button>
             <button class=${classMap({ active: _viewMode === 'list' })} @click=${(e) => { e.stopPropagation(); this._setViewMode('list'); }}>
-              ☰ ${t('list') || '列表'}
+              ${t('list') || '列表'}
             </button>
           </div>
-          <button class="btn sm" @click=${(e) => { e.stopPropagation(); this._load(); }} title="${t('refresh')}" style="flex-shrink:0;">🔄</button>
+          <button class="btn sm" @click=${(e) => { e.stopPropagation(); this._load(); }} title="${t('refresh')}" style="flex-shrink:0;"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
         </div>
         <div class="section-content ${_collapsed.customRepos ? 'collapsed' : ''}">
           <div class="section-desc">${t('customReposDesc')}</div>
+
+          <!-- Search & Sort -->
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <div class="search" style="flex:1;min-width:150px;">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="${t('search') || '搜索...'}" .value=${this._customRepoSearch} @input=${e => this._customRepoSearch = e.target.value}>
+            </div>
+            <select class="edit-input" style="width:auto;" .value=${this._customRepoSort} @change=${e => this._customRepoSort = e.target.value}>
+              <option value="name">${t('sortByName')}</option>
+              <option value="stars">${t('sortByStars')}</option>
+              <option value="updated">${t('sortByUpdated')}</option>
+            </select>
+          </div>
 
           ${this._showAddCustom ? html`
             <div class="add-form">
@@ -654,13 +767,15 @@ export class ManagementView extends LitElement {
                   ${['integration','plugin','theme','dashboard','python_script','template','appdaemon','netdaemon'].map(c => html`<option value=${c}>${this._getCategoryLabel(c)}</option>`)}
                 </select>
                 <button class="btn primary sm" @click=${this._addCustomRepo} ?disabled=${this._addingCustom || !this._customRepoUrl.trim()}>
-                  ${this._addingCustom ? '⏳' : '✓'} ${t('add')}
+                  ${this._addingCustom
+                    ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${t('add')}`
+                    : html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ${t('add')}`}
                 </button>
                 <button class="btn sm" @click=${this._toggleAddCustom}>${t('cancel')}</button>
               </div>
               ${this._customRepoUrl.trim() ? html`
                 <div class="add-preview">${this._parseRepoUrl(this._customRepoUrl)
-                  ? html`📦 ${this._parseRepoUrl(this._customRepoUrl)}`
+                  ? html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> ${this._parseRepoUrl(this._customRepoUrl)}`
                   : html`<span class="add-error">${t('invalidRepoUrl')}</span>`}</div>
               ` : ''}
             </div>
@@ -670,8 +785,8 @@ export class ManagementView extends LitElement {
 
           ${customRepos.length > 0
             ? (_viewMode === 'card'
-              ? html`<div class="repo-cards">${customRepos.map(r => this._renderCard(r, renamedEntries))}</div>`
-              : html`<div class="repo-list">${customRepos.map(r => this._renderListItem(r, renamedEntries))}</div>`)
+              ? html`<div class="repo-cards">${this._getFilteredCustomRepos().map(r => this._renderCard(r, renamedEntries))}</div>`
+              : html`<div class="repo-list">${this._getFilteredCustomRepos().map(r => this._renderListItem(r, renamedEntries))}</div>`)
             : html`<div class="empty">${t('noCustomRepos')}</div>`}
         </div>
       </div>
@@ -742,14 +857,18 @@ export class ManagementView extends LitElement {
               ${this.importing ? t('importing') : t('importBtn')}
             </button>
             <button class="btn" @click=${this._checkDependencies} ?disabled=${this._depLoading}>
-              ${this._depLoading ? '⏳' : '🔍'} ${this._depLoading ? t('checkingUpdates') : t('checkDep')}
+              ${this._depLoading
+                ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${t('checkingUpdates')}`
+                : html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> ${t('checkDep')}`}
             </button>
           </div>
 
           ${this._depResults ? html`
             <div class="dep-panel">
               <div class="dep-summary">
-                <span class="title">${this._depResults.all_ok ? '✅' : '⚠️'} ${t('totalPrefix') || '共'} ${this._depResults.total_checked} ${t('totalRepos')}</span>
+                <span class="title">${this._depResults.all_ok
+                  ? html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`
+                  : html`<svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9800" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`} ${t('totalPrefix') || '共'} ${this._depResults.total_checked} ${t('totalRepos')}</span>
                 ${!this._depResults.all_ok ? html`<span class="issues">${this._depResults.issues_count} ${t('depMissing') || '缺失'}</span>` : ''}
               </div>
               ${!this._depResults.all_ok ? html`
@@ -759,7 +878,7 @@ export class ManagementView extends LitElement {
                     <div class="missing">${r.missing.join(', ')}</div>
                   </div>
                 `)}
-              ` : html`<div class="dep-ok">✅ ${t('depOk')}</div>`}
+              ` : html`<div class="dep-ok"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> ${t('depOk')}</div>`}
             </div>
           ` : ''}
         </div>

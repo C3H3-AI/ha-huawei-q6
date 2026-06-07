@@ -5,9 +5,10 @@ export default {
   input: 'src/index.js',
   output: {
     dir: '../custom_components/hacs_vision/frontend',
-    format: 'es',
+    format: 'iife',
+    name: 'HacsVisionPanel',
     entryFileNames: 'panel.js',
-    sourcemap: true,
+    sourcemap: false,
     // Keep all dynamic imports inlined so HA loads a single file
     inlineDynamicImports: true,
   },

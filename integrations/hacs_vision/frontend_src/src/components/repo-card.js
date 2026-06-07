@@ -58,6 +58,9 @@ class RepoCard extends LitElement {
       display: flex; flex-direction: column;
       position: relative; min-height: 290px;
     }
+    .card.custom-repo {
+      border-left: 3px solid #ff6f00;
+    }
     .card:hover { border-color: var(--primary-color, #03a9f4); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 
     .img-container {
@@ -71,7 +74,10 @@ class RepoCard extends LitElement {
       display: flex; align-items: center; justify-content: center;
       font-size: 24px; font-weight: 700; color: #fff;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      overflow: hidden;
     }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar .initials { display: flex; }
     .badge {
       position: absolute; top: 10px; left: 10px;
       padding: 4px 10px; border-radius: 6px;
@@ -85,12 +91,6 @@ class RepoCard extends LitElement {
     .badge.netdaemon { background: #00838f; }
     .badge.python_script { background: #f9a825; color: #333; }
     .badge.template { background: #6a1b9a; }
-    .badge.custom-badge {
-      position: absolute; top: 10px; right: 48px;
-      padding: 4px 10px; border-radius: 6px;
-      font-size: 10px; font-weight: 600; color: #fff;
-      background: #ff6f00; text-transform: uppercase;
-    }
 
     .installed-badge {
       position: absolute; bottom: 10px; left: 10px;
@@ -148,6 +148,15 @@ class RepoCard extends LitElement {
       background: rgba(var(--rgb-primary-color, 3,169,244), 0.08);
       color: var(--primary-color, #03a9f4); border-radius: 4px;
     }
+    .custom-tag {
+      font-size: 9px; padding: 2px 7px; border-radius: 4px;
+      background: #ff6f00; color: #fff; font-weight: 700;
+    }
+    .topic-tag {
+      font-size: 9px; padding: 1px 6px; border-radius: 4px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color); border: 1px solid var(--divider-color);
+    }
 
     .actions {
       display: flex; gap: 6px;
@@ -203,6 +212,10 @@ class RepoCard extends LitElement {
       .fav-btn { width: 36px; height: 36px; }
       .fav-btn svg { width: 20px; height: 20px; }
     }
+
+    .mini-icon { width: 14px; height: 14px; vertical-align: -2px; display: inline; flex-shrink: 0; }
+    .mini-icon.spin { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   `;
 
   _getInitials(name) {
@@ -210,6 +223,15 @@ class RepoCard extends LitElement {
     const parts = name.split('/');
     const last = parts[parts.length - 1] || name;
     return last.charAt(0).toUpperCase();
+  }
+
+  _getIconUrl(repo) {
+    // For integrations with a domain, use HA brands icon
+    const domain = repo.domain;
+    if (domain && repo.category === 'integration') {
+      return `https://brands.home-assistant.io/${domain}/icon.png`;
+    }
+    return null;
   }
 
   _getCategoryLabel(category) {
@@ -277,14 +299,16 @@ class RepoCard extends LitElement {
     const categoryColor = getCategoryColor(category);
 
     return html`
-      <div class="card" @click=${this._handleCardClick}>
+      <div class="card${r.is_custom ? ' custom-repo' : ''}" @click=${this._handleCardClick}>
         <div class="img-container">
           <div class="avatar" style="background: ${categoryColor}">
-            ${this._getInitials(name)}
+            ${this._getIconUrl(r) ? html`
+              <img src="${this._getIconUrl(r)}" @error=${(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }} alt="">
+              <span class="initials" style="display:none">${this._getInitials(name)}</span>
+            ` : this._getInitials(name)}
           </div>
           <span class="badge ${category}">${this._getCategoryLabel(category)}</span>
-          ${r.is_custom ? html`<span class="badge custom-badge">${t('customBadge')}</span>` : ''}
-          ${isInstalled ? html`<span class="installed-badge">✅ ${t('installed')}</span>` : ''}
+          ${isInstalled ? html`<span class="installed-badge"><svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> ${t('installed')}</span>` : ''}
           <button class="fav-btn ${this._isFavorite ? 'active' : ''}"
                   @click=${this._handleFavorite}
                   title=${this._isFavorite ? t('favOn') : t('favOff')}>
@@ -301,6 +325,8 @@ class RepoCard extends LitElement {
           <div class="meta">
             <div class="tags">
               <span class="tag">${category}</span>
+              ${r.is_custom ? html`<span class="custom-tag">${t('customBadge')}</span>` : ''}
+              ${r.topics && r.topics.length ? r.topics.slice(0, 3).map(t => html`<span class="topic-tag">${t}</span>`) : ''}
             </div>
             <span class="stars">
               <svg viewBox="0 0 20 20"><path d="M10 1l2.39 4.84L17.6 6.7l-3.8 3.71.9 5.26L10 13.27l-4.7 2.46.9-5.26L2.4 6.7l5.2-.86L10 1z"/></svg>
@@ -334,7 +360,7 @@ class RepoCard extends LitElement {
             <button class="action-btn primary ${this._installing ? 'installing' : ''}"
                     @click=${e => this._handleAction(e, 'install')} ?disabled=${this._installing}>
               ${this._installing
-                ? html`⏳ ${t('installing')}`
+                ? html`<svg class="mini-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${t('installing')}`
                 : html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span class="label">${t('install')}</span>`}
             </button>
           `}

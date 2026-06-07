@@ -27,6 +27,7 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     _installingVersion: { type: Boolean, state: true },
     _changelogData: { type: Object, state: true },
     _changelogLoading: { type: Boolean, state: true },
+    _presetFilter: { type: String, state: true },
   };
 
   constructor() {
@@ -50,6 +51,7 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     this._installingVersion = false;
     this._changelogData = null;
     this._changelogLoading = false;
+    this._presetFilter = '';
     registerPanel(this);
     window.addEventListener('resize', () => {
       this.narrow = window.innerWidth < 768;
@@ -118,8 +120,9 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     .title-group h1 { font-size: 19px; font-weight: 700; color: var(--primary-text-color, #212121); margin: 0; }
     .title-group p { font-size: 12px; color: var(--secondary-text-color, #727272); margin: 4px 0 0; }
     .header-right { display: flex; gap: 24px; flex-wrap: wrap; }
-    .stat { text-align: center; }
-    .stat-num { font-size: 20px; font-weight: 700; color: var(--primary-color, #03a9f4); }
+    .stat { text-align: center; cursor: pointer; }
+    .stat:hover .stat-num { opacity: 0.8; }
+    .stat-num { font-size: 20px; font-weight: 700; color: var(--primary-color, #03a9f4); transition: opacity 0.15s; }
     .stat-label { font-size: 11px; color: var(--secondary-text-color, #727272); margin-top: 2px; text-transform: uppercase; }
 
     /* ===== Sticky Tabs ===== */
@@ -171,22 +174,6 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     }
     .content.transitioning { opacity: 0; }
 
-    /* ===== Mobile: reduce padding, no forced min-height ===== */
-    @media (max-width: 768px) {
-      .store { padding: 10px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); min-height: auto; }
-      .header { flex-direction: column; align-items: stretch; padding: 12px 14px; gap: 8px; }
-      .header-left { justify-content: center; }
-      .header-right { justify-content: center; gap: 16px; }
-      .header-icon { width: 36px; height: 36px; font-size: 18px; }
-      .title-group h1 { font-size: 16px; text-align: center; }
-      .title-group p { text-align: center; }
-      .stat-num { font-size: 17px; }
-      .stat-label { font-size: 10px; }
-      .sticky-header { margin: 0 -10px 8px; padding: 0 10px 8px; }
-      .tab { padding: 8px 12px; font-size: 12px; }
-      .loading { padding: 40px 16px; }
-    }
-
     /* ===== Loading ===== */
     .loading { text-align: center; padding: 60px 20px; color: var(--secondary-text-color, #727272); }
     .spinner {
@@ -224,6 +211,12 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     .toast.show { opacity: 1; transform: translateY(0); }
     .toast.success { background: #4caf50; }
     .toast.error { background: #f44336; }
+
+    /* ===== Utility icons ===== */
+    .mini-icon { width: 14px; height: 14px; vertical-align: -2px; display: inline; flex-shrink: 0; }
+    .mini-icon.spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .update-badge { background: var(--warning-color, #ff9800); color: #fff; padding: 1px 6px; border-radius: 8px; font-size: 10px; display: inline-flex; align-items: center; gap: 2px; }
 
     /* ===== Detail Modal ===== */
     .modal-overlay {
@@ -298,6 +291,22 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     .detail-desc {
       font-size: 14px; color: var(--secondary-text-color); line-height: 1.6;
       margin-bottom: 16px;
+    }
+
+    .detail-authors {
+      font-size: 12px; color: var(--secondary-text-color); margin-bottom: 12px;
+    }
+    .detail-authors svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+    .detail-author-link { color: var(--primary-color); text-decoration: none; margin-right: 8px; }
+    .detail-author-link:hover { text-decoration: underline; }
+
+    .detail-topics {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
+    }
+    .detail-topic-tag {
+      display: inline-block; padding: 2px 10px; border-radius: 4px;
+      font-size: 11px; background: var(--secondary-background-color);
+      color: var(--secondary-text-color); border: 1px solid var(--divider-color);
     }
 
     .detail-stats {
@@ -449,14 +458,18 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     /* ===== Responsive ===== */
     @media (max-width: 768px) {
       .store { padding: 8px 10px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
-      .header { padding: 8px 10px; margin-bottom: 8px; border-radius: 12px; }
-      .header-left { gap: 8px; }
-      .header-icon { width: 30px; height: 30px; font-size: 15px; border-radius: 8px; }
-      .title-group h1 { font-size: 15px; }
+      .header {
+        flex-direction: row; align-items: center; justify-content: space-between;
+        padding: 8px 12px; margin-bottom: 8px; border-radius: 12px;
+      }
+      .header-left { gap: 6px; align-items: center; }
+      .header-icon { width: 28px; height: 28px; font-size: 14px; border-radius: 8px; flex-shrink: 0; }
+      .title-group h1 { font-size: 14px; text-align: left; }
       .title-group p { display: none; }
-      .header-right { gap: 8px; justify-content: flex-end; }
-      .stat-num { font-size: 14px; }
-      .stat-label { font-size: 9px; }
+      .header-right { gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }
+      .stat { text-align: center; min-width: 32px; }
+      .stat-num { font-size: 12px; }
+      .stat-label { font-size: 8px; }
       .sticky-header { margin: 0 -10px 8px; padding: 0 10px 8px; }
       .tab { padding: 8px 12px; font-size: 12px; min-height: 44px; display: flex; align-items: center; }
 
@@ -582,6 +595,13 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
     this._changelogLoading = false;
   }
 
+  _applyFilter(filter) {
+    this._presetFilter = filter;
+    this.switchView('browse');
+    // Reset after applying so re-clicking same stat re-applies
+    setTimeout(() => { this._presetFilter = ''; }, 100);
+  }
+
   _closeDetail() {
     this._showDetail = false;
     this._detailRepo = null;
@@ -692,9 +712,9 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
 
   render() {
     const tabs = [
-      { view: 'browse', label: t('tabBrowse'), icon: '🔍' },
-      { view: 'updates', label: t('tabUpdates'), icon: '🔄', count: this.stats.available_updates },
-      { view: 'management', label: t('tabManagement'), icon: '⚙️' },
+      { view: 'browse', label: t('tabBrowse'), icon: '', count: null },
+      { view: 'updates', label: t('tabUpdates'), icon: '', count: null },
+      { view: 'management', label: t('tabManagement'), icon: '', count: null },
     ];
 
     const r = this._detailRepo;
@@ -709,7 +729,7 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
       <div class="store">
         ${this._error ? html`
           <div class="error-banner error">
-            ⚠️ ${t('connectFailed')}: <code>${this._error}</code>
+            <svg class="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${t('connectFailed')}: <code>${this._error}</code>
           </div>
         ` : ''}
         ${!this._apiReady ? html`
@@ -736,29 +756,29 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
             </div>
           </div>
           <div class="header-right">
-            <div class="stat">
+            <div class="stat" @click=${() => this._applyFilter('installed')}>
               <div class="stat-num">${this.stats.total_installed ?? 0}</div>
               <div class="stat-label">${t('statInstalled')}</div>
             </div>
-            <div class="stat">
+            <div class="stat" @click=${() => this._applyFilter('update_available')}>
               <div class="stat-num">${this.stats.available_updates ?? 0}</div>
               <div class="stat-label">${t('statUpdates')}</div>
             </div>
             ${(this.stats.pending_restart ?? 0) > 0 ? html`
-            <div class="stat" style="color:#f44336;">
+            <div class="stat" style="color:#f44336;" @click=${() => this._applyFilter('pending_restart')}>
               <div class="stat-num">${this.stats.pending_restart}</div>
               <div class="stat-label">${t('statusPendingRestart')}</div>
             </div>
             ` : ''}
-            <div class="stat">
+            <div class="stat" @click=${() => this._applyFilter('favorites')}>
               <div class="stat-num">${this._favoriteCount ?? 0}</div>
               <div class="stat-label">${t('statFavorites') || '收藏'}</div>
             </div>
-            <div class="stat">
+            <div class="stat" @click=${() => this._applyFilter('custom')}>
               <div class="stat-num">${this.stats.custom_count ?? 0}</div>
               <div class="stat-label">${t('statCustom') || '自定义'}</div>
             </div>
-            <div class="stat">
+            <div class="stat" @click=${() => this._applyFilter('')}>
               <div class="stat-num">${this.stats.total_repos ?? 0}</div>
               <div class="stat-label">${t('statRepos')}</div>
             </div>
@@ -772,7 +792,7 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
               ${tabs.map(tab => html`
                 <button class="tab ${this.currentView === tab.view ? 'active' : ''}"
                         @click=${() => this.switchView(tab.view)}>
-                  ${tab.icon} ${tab.label}
+                  ${tab.icon ? html`${tab.icon} ` : ''}${tab.label}
                   ${tab.count !== undefined && tab.count !== null ? html`<span class="badge">${tab.count}</span>` : ''}
                 </button>
               `)}
@@ -782,7 +802,7 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
 
         <!-- Content with fade transition -->
         <div class="content ${this._viewTransition ? 'transitioning' : ''}">
-          ${this.currentView === 'browse' ? html`<browse-view .hass=${this.hass}></browse-view>` : ''}
+          ${this.currentView === 'browse' ? html`<browse-view .hass=${this.hass} .presetFilter=${this._presetFilter}></browse-view>` : ''}
           ${this.currentView === 'updates' ? html`<updates-view .hass=${this.hass}></updates-view>` : ''}
           ${this.currentView === 'management' ? html`<management-view .hass=${this.hass}></management-view>` : ''}
         </div>
@@ -804,6 +824,15 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
 
               <div class="detail-desc">${r.description || t('noDesc')}</div>
 
+              ${r.authors && r.authors.length ? html`
+                <div class="detail-authors">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  ${r.authors.map(a => html`
+                    <a class="detail-author-link" href="https://github.com/${a}" target="_blank" rel="noopener">@${a}</a>
+                  `)}
+                </div>
+              ` : ''}
+
               <div class="detail-stats">
                 <div class="detail-stat">
                   <svg viewBox="0 0 20 20" fill="#ff9800"><path d="M10 1l2.39 4.84L17.6 6.7l-3.8 3.71.9 5.26L10 13.27l-4.7 2.46.9-5.26L2.4 6.7l5.2-.86L10 1z"/></svg>
@@ -820,6 +849,14 @@ export class HacsVisionPanel extends themeMixin(LitElement) {
                   <span class="val">${r.full_name || r.name || ''}</span>
                 </div>
               </div>
+
+              ${r.topics && r.topics.length ? html`
+                <div class="detail-topics">
+                  ${r.topics.map(topic => html`
+                    <span class="detail-topic-tag">${topic}</span>
+                  `)}
+                </div>
+              ` : ''}
 
               ${isInstalled ? html`
                 <div class="detail-version">

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rollup -c rollup.config.js"
+    "build": "rollup -c rollup.config.js",
+    "postbuild": "node -e \"require('fs').copyFileSync('www/index.html', '../custom_components/hacs_vision/frontend/index.html')\""
   },
   "dependencies": {
     "dompurify": "^3.4.8",
