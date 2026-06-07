@@ -1,10 +1,12 @@
 {
   "domain": "hacs_vision",
   "name": "HACS Vision",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "requirements": [],
   "dependencies": ["hacs"],
-  "codeowners": ["@user"],
+  "codeowners": ["@C3H3-AI"],
   "config_flow": true,
+  "documentation": "https://github.com/C3H3-AI/ha-huawei-q6",
+  "issue_tracker": "https://github.com/C3H3-AI/ha-huawei-q6/issues",
   "iot_class": "calculated"
 }
