@@ -194,3 +194,4 @@ class HACSData:
             favs.remove(repo_id)
             return await self.set_favorites(favs)
         return True
+

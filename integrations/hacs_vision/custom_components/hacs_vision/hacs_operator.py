@@ -22,6 +22,8 @@ class HACSOperator:
         self._repo_index_by_name = None
         # P1: Install/update/remove locks for idempotency protection
         self._install_locks: dict[str, asyncio.Lock] = {}
+        # F1: Track whether custom repos have been verified from config in this session
+        self._custom_repos_verified: bool = False
 
     @property
     def _hacs(self):
@@ -51,6 +53,68 @@ class HACSOperator:
         """Clear cached index, will be rebuilt on next access."""
         self._repo_index_by_id = None
         self._repo_index_by_name = None
+
+    async def _ensure_custom_repos_registered(self):
+        """Ensure all custom repos from HACS config are registered in HACS memory.
+
+        HACS 2.0 may not re-register custom repos from config on startup due to
+        async timing. This method reads hacs.hacs config and re-registers any
+        missing repos so they appear in list_all immediately.
+
+        Uses check=False (like HACS's own register_unknown_repositories during
+        startup) to avoid GitHub API dependency - the repo data may already exist
+        in .storage/hacs.repositories from a previous session.
+        """
+        if not self.available:
+            return
+        if self._custom_repos_verified:
+            return
+        self._custom_repos_verified = True
+
+        registered_any = False
+        try:
+            config = await self._data.get_config()
+            custom_repos = config.get("custom_repositories", [])
+            for cr in custom_repos:
+                full_name = cr.get("repository", "")
+                category = cr.get("category", "integration")
+                if not full_name:
+                    continue
+                if self._hacs.repositories.is_registered(repository_full_name=full_name.lower()):
+                    continue
+
+                # Try to find the repo data in .storage/hacs.repositories
+                repo_id = None
+                try:
+                    repos_data = await self._data.read_storage("repositories")
+                    if repos_data and "data" in repos_data:
+                        for rid, info in repos_data["data"].items():
+                            if info.get("full_name", "").lower() == full_name.lower():
+                                repo_id = rid
+                                break
+                except Exception:
+                    pass
+
+                try:
+                    await self._hacs.async_register_repository(
+                        repository_full_name=full_name,
+                        category=category,
+                        check=False,
+                        repository_id=repo_id,
+                    )
+                    _LOGGER.info(
+                        "Re-registered custom repo after restart: %s (check=False, id=%s)",
+                        full_name, repo_id,
+                    )
+                    registered_any = True
+                except Exception as e:
+                    _LOGGER.warning("Failed to re-register custom repo %s: %s", full_name, e, exc_info=True)
+        except Exception as e:
+            _LOGGER.error("_ensure_custom_repos_registered error: %s", e, exc_info=True)
+
+        # Invalidate index so _find_repo methods pick up newly registered repos
+        if registered_any:
+            self.invalidate_index()
 
     def _get_lock(self, repo_id: str) -> asyncio.Lock:
         """Get or create an asyncio.Lock for a specific repo."""
@@ -205,6 +269,8 @@ class HACSOperator:
                     "installed_version": repo.display_installed_version,
                     "category": repo.data.category,
                     "has_update": has_update,
+                    "installed": repo.data.installed or False,
+                    "pending_restart": getattr(repo, 'pending_restart', False),
                 })
         except (AttributeError, KeyError, TypeError) as e:
             _LOGGER.error("get_installed_list error: %s", e, exc_info=True)
@@ -269,10 +335,26 @@ class HACSOperator:
             _LOGGER.error("get_available_updates error: %s", e, exc_info=True)
         return updates
 
-    def get_all_repos_from_hacs(self) -> list[dict]:
+    async def get_all_repos_from_hacs(self) -> list[dict]:
         """Get ALL repositories from HACS in-memory data (same source as HACS UI)."""
         if not self.available:
             return []
+
+        # F1: Ensure custom repos from config are registered in HACS memory
+        # (handles restart race condition where HACS hasn't loaded custom repos yet)
+        await self._ensure_custom_repos_registered()
+
+        # Pre-load custom repo names from HACS config for is_custom detection
+        custom_repo_names = set()
+        try:
+            config = await self._data.get_config()
+            for r in config.get("custom_repositories", []):
+                repo_name = r.get("repository", "")
+                if repo_name:
+                    custom_repo_names.add(repo_name.lower())
+        except Exception:
+            pass
+
         result = []
         errors = []
         try:
@@ -293,12 +375,14 @@ class HACSOperator:
                         or (getattr(repo.data, 'last_commit', None)[:7] if getattr(repo.data, 'last_commit', None) else None)
                     )
 
+                    pending_restart = getattr(repo, 'pending_restart', False)
+
                     status = "default"
                     if repo.data.installed:
                         status = "installed"
                     if has_update:
                         status = "pending-upgrade"
-                    if hasattr(repo.data, 'pending_restart') and repo.data.pending_restart:
+                    if pending_restart:
                         status = "pending-restart"
                     if hasattr(repo.data, 'new') and repo.data.new:
                         status = "new"
@@ -311,17 +395,28 @@ class HACSOperator:
                         except Exception:
                             pass
 
-                    # In HACS 2.0, "custom" means not in default repositories
-                    # But _default_repositories is loaded asynchronously from the HACS catalog
-                    # Only trust is_default() if the set has been populated (>500 entries)
-                    default_repos_ready = (
-                        hasattr(self._hacs.repositories, '_default_repositories')
-                        and len(self._hacs.repositories._default_repositories) > 500
-                    )
-                    is_custom = (
-                        not self._hacs.repositories.is_default(str(repo.data.id))
-                        if default_repos_ready else False
-                    )
+                    # is_custom detection:
+                    # 1. First check if the repo is in the HACS config's custom_repositories list
+                    # 2. Fallback: check is_default() if _default_repositories is loaded
+                    is_custom = False
+                    full_name_lower = repo.data.full_name.lower()
+                    if full_name_lower in custom_repo_names:
+                        is_custom = True
+                    else:
+                        default_repos_ready = (
+                            hasattr(self._hacs.repositories, '_default_repositories')
+                            and len(self._hacs.repositories._default_repositories) > 500
+                        )
+                        if default_repos_ready:
+                            is_custom = not self._hacs.repositories.is_default(str(repo.data.id))
+
+                    # authors: filter out "@user" placeholder HACS sets for custom repos,
+                    # fallback to GitHub owner extracted from full_name
+                    authors_raw = repo.data.authors or []
+                    _authors = [a.lstrip('@') for a in authors_raw if a and a != "@user"]
+                    if not _authors:
+                        owner = repo.data.full_name.split("/")[0] if repo.data.full_name else None
+                        _authors = [owner] if owner else []
 
                     result.append({
                         "id": str(repo.data.id),
@@ -330,7 +425,7 @@ class HACSOperator:
                         "manifest_name": manifest_name,
                         "category": repo.data.category,
                         "description": repo.data.description or "",
-                        "authors": repo.data.authors or [],
+                        "authors": _authors,
                         "stargazers_count": repo.data.stargazers_count or 0,
                         "downloads": getattr(repo.data, 'downloads', 0) or 0,
                         "last_updated": repo.data.last_updated or "",
@@ -339,6 +434,7 @@ class HACSOperator:
                         "latest_version": display_latest,
                         "has_update": has_update,
                         "status": status,
+                        "pending_restart": pending_restart,
                         "new": getattr(repo.data, 'new', False),
                         "topics": getattr(repo.data, 'topics', []) or [],
                         "custom": is_custom,
@@ -421,7 +517,7 @@ class HACSOperator:
             "installed_version": installed,
             "latest_version": available,
             "has_update": bool(installed and available and installed != available),
-            "pending_restart": getattr(repo.data, 'pending_restart', False),
+            "pending_restart": getattr(repo, 'pending_restart', False),
         }
 
     async def refresh_repositories(self) -> dict:
@@ -456,24 +552,37 @@ class HACSOperator:
         config = await self._data.get_config()
         custom_repos = config.get("custom_repositories", [])
 
-        for r in custom_repos:
-            if r.get("repository") == full_name:
-                return {"success": False, "error": "already_exists"}
+        already_in_config = any(r.get("repository") == full_name for r in custom_repos)
 
-        custom_repos.append({"repository": full_name, "category": category})
-        config["custom_repositories"] = custom_repos
-        ok = await self._data.update_config(config)
-        if not ok:
-            return {"success": False, "error": "write_failed"}
+        if not already_in_config:
+            custom_repos.append({"repository": full_name, "category": category})
+            config["custom_repositories"] = custom_repos
+            ok = await self._data.update_config(config)
+            if not ok:
+                return {"success": False, "error": "write_failed"}
 
-        # N1: Invalidate index after config mutation
         self.invalidate_index()
 
         if self.available:
+            already_in_memory = self._hacs.repositories.is_registered(
+                repository_full_name=full_name.lower()
+            )
+            if not already_in_memory:
+                try:
+                    await self._hacs.async_register_repository(
+                        repository_full_name=full_name,
+                        category=category,
+                    )
+                except Exception as e:
+                    _LOGGER.warning("HACS register failed after add: %s", e, exc_info=True)
+                    return {"success": False, "error": f"HACS register failed: {e}"}
+
+            # Persist the newly registered repo to .storage/hacs.repositories immediately.
+            # Without this, HA restart may lose the repo before HACS has a chance to write.
             try:
-                await self._hacs.async_reload()
-            except (AttributeError, ConnectionError) as e:
-                _LOGGER.warning("HACS reload failed after add: %s", e, exc_info=True)
+                await self._hacs.data.async_write()
+            except Exception as e:
+                _LOGGER.warning("HACS data write failed after add: %s", e, exc_info=True)
 
         return {"success": True, "repository": full_name}
 
@@ -482,20 +591,26 @@ class HACSOperator:
         config = await self._data.get_config()
         custom_repos = config.get("custom_repositories", [])
         filtered = [r for r in custom_repos if r.get("repository") != full_name]
-        if len(filtered) == len(custom_repos):
-            return {"success": False, "error": "not_found"}
-        config["custom_repositories"] = filtered
-        ok = await self._data.update_config(config)
-        if not ok:
-            return {"success": False, "error": "write_failed"}
+        config_updated = len(filtered) < len(custom_repos)
+        if config_updated:
+            config["custom_repositories"] = filtered
+            ok = await self._data.update_config(config)
+            if not ok:
+                return {"success": False, "error": "write_failed"}
 
-        # N1: Invalidate index after config mutation
         self.invalidate_index()
 
         if self.available:
             try:
-                await self._hacs.async_reload()
-            except (AttributeError, ConnectionError) as e:
-                _LOGGER.warning("HACS reload failed after remove: %s", e, exc_info=True)
+                repository = self._hacs.repositories.get_by_full_name(full_name)
+                if not repository:
+                    for r in self._hacs.repositories.list_all:
+                        if r.data.full_name.lower() == full_name.lower():
+                            repository = r
+                            break
+                if repository:
+                    self._hacs.repositories.unregister(repository)
+            except Exception as e:
+                _LOGGER.warning("HACS unregister failed after remove: %s", e, exc_info=True)
 
         return {"success": True, "repository": full_name}
