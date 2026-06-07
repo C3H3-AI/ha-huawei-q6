@@ -119,7 +119,7 @@ class BrowseView extends LitElement {
   static styles = css`
     ${commonStyles}
 
-    :host { display: block; touch-action: manipulation; }
+    :host { display: block; touch-action: manipulation; background: var(--primary-background-color); }
 
     /* ===== Controls Bar ===== */
     .controls {
@@ -539,17 +539,25 @@ class BrowseView extends LitElement {
   _refresh() { this.page = 1; this._persistState(); this._load(); }
 
   async _addRepo() {
-    if (!this._newRepoUrl.trim()) return;
+    const fullName = this._parseRepoUrl(this._newRepoUrl);
+    if (!fullName) { showToast(t('invalidRepoUrl'), 'error'); return; }
     this._addRepoInstalling = true;
     try {
-      const result = await api.addCustomRepo(this._newRepoUrl.trim(), this._newRepoCategory);
+      const result = await api.addCustomRepo(fullName, this._newRepoCategory);
       if (result.success) {
-        showToast(`${t('installComplete')}: ${this._newRepoUrl.trim()}`, 'success');
+        showToast(`${t('addSuccess')}: ${fullName}`, 'success');
         this._newRepoUrl = ''; this._showAddRepo = false; this._load();
         this.dispatchEvent(new CustomEvent('refresh-stats', { bubbles: true, composed: true }));
-      } else { showToast(`${t('addFailed')}: ${result.error || 'unknown'}`, 'error'); }
+      } else { showToast(`${t('addFailed')}: ${result.error}`, 'error'); }
     } catch(e) { showToast(`${t('addFailed')}: ${e.message}`, 'error'); }
     this._addRepoInstalling = false;
+  }
+
+  _parseRepoUrl(url) {
+    const match = url.match(/github\.com\/([^/]+\/[^/\s?#]+)/i);
+    if (match) return match[1].replace(/\.git$/, '');
+    if (/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/.test(url)) return url;
+    return null;
   }
 
   _getRepoStatus(repo) {

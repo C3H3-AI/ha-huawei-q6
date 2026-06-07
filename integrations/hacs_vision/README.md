@@ -33,21 +33,18 @@ HACS Vision 就是为了解决这些问题而开发的！
 - 📋 **Changelog 预览**：查看仓库的更新历史
 - ⚙️ **管理功能**：归档、重命名、忽略仓库
 
-## 📸 截图
+## 📸 效果图
 
-### 商店 - 卡片视图
+![HACS Vision](assets/hero.png)
+
 ![商店 - 卡片视图](assets/screenshot_1_store_card.png)
 
-### 商店 - 列表视图
 ![商店 - 列表视图](assets/screenshot_2_store_list.png)
 
-### 更新视图
 ![更新视图](assets/screenshot_3_updates.png)
 
-### 管理视图
 ![管理视图](assets/screenshot_4_manage.png)
 
-### 详情弹窗
 ![详情弹窗](assets/screenshot_5_detail.png)
 
 ## 🚀 安装
@@ -72,12 +69,22 @@ HACS Vision 就是为了解决这些问题而开发的！
 
 ## 📝 更新日志
 
+### v1.1.1
+- 修复：自定义仓库添加/删除未注册到 HACS 内存（调用 async_register_repository/unregister）
+- 修复：商店页面添加自定义仓库无反应（添加 URL 解析）
+- 修复：添加已存在的仓库"ghost"问题（幂等处理，自动注册到内存）
+- 修复：删除自定义仓库时配置中没有也尝试从内存移除
+
+### v1.1.0
+- 修复自定义仓库橙色标识不显示的问题（is_custom 检测 bug）
+- 修复待重启（Pending Restart）状态不准的问题
+- 优化：自定义仓库检测同时读取 HACS 配置和默认仓库列表
+
 ### v1.0.0
 - 初始正式版本发布
 - 完整的功能对比与实现
 - 添加作者信息与 Topics 标签
 - 添加自定义仓库橙色标识
-- GitHub 分支改为主分支 `main`
 
 ## 📄 许可证
 
@@ -86,4 +93,3 @@ MIT License
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
-

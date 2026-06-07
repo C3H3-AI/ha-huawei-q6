@@ -36,7 +36,7 @@ const T = {
   tabUpdates: { zh: '更新', en: 'Updates' },
   tabConfig: { zh: '配置', en: 'Config' },
   tabBackup: { zh: '备份', en: 'Backup' },
-  tabManagement: { zh: '管理', en: 'Management' },
+  tabManagement: { zh: '仓库管理', en: 'Repository' },
 
   // Browse
   searchPlaceholder: { zh: '搜索仓库...', en: 'Search repositories...' },
