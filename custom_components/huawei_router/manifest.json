@@ -5,9 +5,8 @@
   "after_dependencies": [
     "zone"
   ],
-  "codeowners": [
-    "@vmakeev"
-  ],
+  "authors": ["@C3H3-AI"],
+  "codeowners": ["@C3H3-AI"],
   "config_flow": true,
   "documentation": "https://github.com/C3H3-AI/ha-huawei-q6",
   "integration_type": "hub",
