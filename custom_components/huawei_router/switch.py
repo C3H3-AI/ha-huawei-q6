@@ -23,15 +23,13 @@ from .helpers import (
 )
 
 from .options import HuaweiIntegrationOptions
-from .update_coordinator import (
+from .update_coordinator import HuaweiDataUpdateCoordinator, PortMapping, UrlFilter
+from .watchers import (
     ActiveRoutersWatcher,
     ClientWirelessDevicesWatcher,
-    HuaweiDataUpdateCoordinator,
     HuaweiPortMappingsWatcher,
     HuaweiTimeControlItemsWatcher,
     HuaweiUrlFiltersWatcher,
-    PortMapping,
-    UrlFilter,
 )
 
 _LOGGER = logging.getLogger(__name__)

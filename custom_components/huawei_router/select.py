@@ -19,7 +19,8 @@ from .helpers import (
 )
 
 from .options import HuaweiIntegrationOptions
-from .update_coordinator import ActiveRoutersWatcher, HuaweiDataUpdateCoordinator
+from .update_coordinator import HuaweiDataUpdateCoordinator
+from .watchers import ActiveRoutersWatcher
 
 _LOGGER = logging.getLogger(__name__)
 

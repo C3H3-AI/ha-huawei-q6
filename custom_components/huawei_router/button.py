@@ -15,7 +15,8 @@ from .helpers import (
     generate_entity_unique_id,
     get_coordinator,
 )
-from .update_coordinator import ActiveRoutersWatcher, HuaweiDataUpdateCoordinator
+from .update_coordinator import HuaweiDataUpdateCoordinator
+from .watchers import ActiveRoutersWatcher
 
 _LOGGER = logging.getLogger(__name__)
 
