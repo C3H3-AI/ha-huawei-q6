@@ -22,56 +22,13 @@
             "auth_invalid_credentials": "Invalid username or password."
         }
     },
-    "entity": {
-        "sensor": {
-            "wan_status": {
-                "name": "WAN Status"
-            },
-            "wan_ip": {
-                "name": "WAN IP Address"
-            },
-            "wan_ipv6": {
-                "name": "WAN IPv6 Address"
-            },
-            "wan_download": {
-                "name": "WAN Download"
-            },
-            "wan_upload": {
-                "name": "WAN Upload"
-            },
-            "received_data": {
-                "name": "Received Data"
-            },
-            "sent_data": {
-                "name": "Sent Data"
-            },
-            "packets_received": {
-                "name": "Packets Received"
-            },
-            "packets_sent": {
-                "name": "Packets Sent"
-            },
-            "download_speed": {
-                "name": "Download Speed"
-            },
-            "upload_speed": {
-                "name": "Upload Speed"
-            },
-            "packet_download_speed": {
-                "name": "Packet Download Speed"
-            },
-            "packet_upload_speed": {
-                "name": "Packet Upload Speed"
-            }
-        }
-    },
     "options": {
         "step": {
             "basic_options": {
                 "data": {
                     "scan_interval": "Update interval"
                 },
-                "title": "Huawei mesh router setup (1\/2)",
+                "title": "Huawei mesh router setup (1/2)",
                 "description": "Basic options"
             },
             "features_select": {
@@ -88,7 +45,7 @@
                     "skip_offline_devices": "Skip offline devices",
                     "auto_associate_devices": "Auto associate devices"
                 },
-                "title": "Huawei mesh router setup (2\/2)",
+                "title": "Huawei mesh router setup (2/2)",
                 "description": "Additional features"
             }
         }

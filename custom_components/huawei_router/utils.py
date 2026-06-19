@@ -1,12 +1,10 @@
 from abc import ABC, abstractmethod
 import logging
 from typing import Callable, Generic, Iterable, Tuple, TypeVar
-
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.storage import Store
-
 from .classes import DEVICE_TAG
 from .client.classes import MAC_ADDR, KILOBYTES_PER_SECOND
 
@@ -31,39 +29,31 @@ class HuaweiChangesWatcher(Generic[_TKey, _TItem], ABC):
     def _get_actual_items(self) -> Iterable[_TItem]:
         raise NotImplementedError()
 
-    def _get_difference(
-        self, hass: HomeAssistant
-    ) -> Tuple[
+    def _get_difference(self, hass: HomeAssistant) -> Tuple[
         Iterable[Tuple[_TKey, _TItem]],
         Iterable[Tuple[EntityRegistry, _TKey, _TItem]],
     ]:
         """Return the difference between previously known and current lists of items."""
         actual_items: dict[_TKey, _TItem] = {}
-
         for item in self._get_actual_items():
             if self._predicate(item):
                 actual_items[self._get_key(item)] = item
-
         added: list[Tuple[_TKey, _TItem]] = []
         removed: list[Tuple[EntityRegistry, _TKey, _TItem]] = []
-
         for key, item in actual_items.items():
             if key in self._known_items:
                 continue
             self._known_items[key] = item
             added.append((key, item))
-
         missing_items = {}
         for key, item in self._known_items.items():
             if key not in actual_items:
                 missing_items[key] = item
-
         if missing_items:
             er = entity_registry.async_get(hass)
             for key, missing_item in missing_items.items():
                 self._known_items.pop(key, None)
                 removed.append((er, key, missing_item))
-
         return added, removed
 
 
@@ -87,10 +77,8 @@ class TagsMap:
     async def load(self):
         """Load the tags from the storage."""
         self._logger.debug("Stored tags loading started")
-
         self._mac_to_tags.clear()
         self._tag_to_macs.clear()
-
         self._tag_to_macs = await self._storage.async_load()
         if not self._tag_to_macs:
             self._logger.debug("No stored tags found, creating sample")
@@ -100,15 +88,12 @@ class TagsMap:
             }
             await self._storage.async_save(default_tags)
             self._tag_to_macs = default_tags
-
         for tag, devices_macs in self._tag_to_macs.items():
             for device_mac in devices_macs:
                 if device_mac not in self._mac_to_tags:
                     self._mac_to_tags[device_mac] = []
                 self._mac_to_tags[device_mac].append(tag)
-
         self._is_loaded = True
-
         self._logger.debug("Stored tags loading finished")
 
     def get_tags(self, mac_address: MAC_ADDR) -> list[DEVICE_TAG]:
@@ -156,23 +141,17 @@ class ZonesMap:
         """Set the zone id to the device"""
         if not self.is_loaded:
             await self.load()
-
         self._devices_to_zones[device_id] = zone_id
         await self._storage.async_save(self._devices_to_zones)
 
 
-def get_readable_rate(
-        rate: KILOBYTES_PER_SECOND
-) -> str:
+def get_readable_rate(rate: KILOBYTES_PER_SECOND) -> str:
     unit: str = "Kbps"
     value = rate * 8
-
     if value > 1024:
         unit = "Mbps"
         value = round(value / 1024, 1)
-
     if value > 1024:
         unit = "Gbps"
         value = round(value / 1024, 1)
-
     return f"{value} {unit}"

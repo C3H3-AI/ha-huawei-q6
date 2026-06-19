@@ -4,12 +4,10 @@ from abc import ABC
 import asyncio
 import logging
 from typing import Final
-
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
 from .classes import ConnectedDevice
 from .client.classes import MAC_ADDR, Action
 from .helpers import (
@@ -27,23 +25,17 @@ _FUNCTION_UID_REBOOT: Final = "button_reboot"
 ENTITY_DOMAIN: Final = "button"
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities
-) -> None:
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities) -> None:
     """Set up buttons for Huawei Router component."""
     coordinator = get_coordinator(hass, config_entry)
-
     # 主路由不在 connected_devices 中，需要直接创建重启按键
     primary_button = HuaweiRebootButton(coordinator, None)
     async_add_entities([primary_button])
-
     # 子路由通过 ActiveRoutersWatcher 动态创建重启按键
     _watch_for_satellite_routers(coordinator, config_entry, async_add_entities)
 
 
-def _watch_for_satellite_routers(
-    coordinator, config_entry, async_add_entities
-) -> None:
+def _watch_for_satellite_routers(coordinator, config_entry, async_add_entities) -> None:
     """监听子路由上线，动态创建重启按键。"""
     watcher: ActiveRoutersWatcher = ActiveRoutersWatcher(coordinator)
     known_buttons: dict[MAC_ADDR, HuaweiButton] = {}
@@ -97,9 +89,7 @@ class HuaweiButton(CoordinatorEntity[HuaweiDataUpdateCoordinator], ButtonEntity,
         await self.coordinator.execute_action(self._action, self._device_mac)
 
     def press(self) -> None:
-        return asyncio.run_coroutine_threadsafe(
-            self.async_press(), self.hass.loop
-        ).result()
+        return asyncio.run_coroutine_threadsafe(self.async_press(), self.hass.loop).result()
 
 
 class HuaweiRebootButton(HuaweiButton):

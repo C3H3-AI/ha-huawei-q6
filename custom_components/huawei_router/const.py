@@ -1,21 +1,12 @@
 """Huawei Mesh Router shared constants."""
 
-
-
 from typing import Final
-
-
-
 from homeassistant.const import Platform
-
-
 
 DOMAIN: Final = "huawei_router"
 
 
-
 STORAGE_VERSION: Final = 1
-
 
 
 DATA_KEY_COORDINATOR: Final = "coordinator"
@@ -23,7 +14,6 @@ DATA_KEY_COORDINATOR: Final = "coordinator"
 DATA_KEY_PLATFORMS: Final = "platforms"
 
 DATA_KEY_SERVICES: Final = "services_count"
-
 
 
 OPT_WIFI_ACCESS_SWITCHES = "wifi_access_switches"
@@ -45,7 +35,6 @@ OPT_EVENT_ENTITIES = "event_entities"
 OPT_TIME_CONTROL_SWITCHES = "time_control_switches"
 OPT_SKIP_OFFLINE_DEVICES = "skip_offline_devices"
 OPT_AUTO_ASSOCIATE_DEVICES = "auto_associate_devices"
-
 
 
 DEFAULT_HOST: Final = "192.168.3.1"
@@ -85,24 +74,14 @@ DEFAULT_SKIP_OFFLINE_DEVICES: Final = True
 DEFAULT_AUTO_ASSOCIATE_DEVICES: Final = True
 
 
-
 ATTR_MANUFACTURER: Final = "Huawei"
 
 PLATFORMS: Final = [
-
     Platform.SWITCH,
-
     Platform.DEVICE_TRACKER,
-
     Platform.SENSOR,
-
     Platform.BUTTON,
-
     Platform.BINARY_SENSOR,
-
     Platform.SELECT,
-
     Platform.EVENT,
-
 ]
-

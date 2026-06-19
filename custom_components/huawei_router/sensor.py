@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 from typing import Callable, Final
-
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -16,7 +15,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
 from .classes import DEVICE_TAG, ConnectedDevice, HuaweiInterfaceType
 from .client.classes import MAC_ADDR
 from .client.const import CONNECTED_VIA_ID_PRIMARY
@@ -184,9 +182,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors for Huawei component."""
     coordinator = get_coordinator(hass, config_entry)
-
     integration_options = HuaweiIntegrationOptions(config_entry)
-
     sensors = [
         HuaweiUptimeSensor(
             coordinator,
@@ -215,7 +211,6 @@ async def async_setup_entry(
             lambda device: device.is_active,
         ),
     ]
-
     if integration_options.router_clients_sensors:
         sensors.append(
             HuaweiConnectedDevicesSensor(
@@ -230,11 +225,9 @@ async def async_setup_entry(
                     function_name=_FUNCTION_DISPLAYED_NAME_CLIENTS,
                 ),
                 integration_options,
-                lambda device: device.is_active
-                and device.connected_via_id == CONNECTED_VIA_ID_PRIMARY,
+                lambda device: device.is_active and device.connected_via_id == CONNECTED_VIA_ID_PRIMARY,
             )
         )
-
         sensors.append(
             HuaweiDiagnosticsSensor(
                 coordinator,
@@ -249,7 +242,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         sensors.append(
             HuaweiGroupedDevicesSensor(
                 coordinator,
@@ -264,7 +256,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         sensors.append(
             HuaweiWanStatusSensor(
                 coordinator,
@@ -280,7 +271,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         sensors.append(
             HuaweiWanIpSensor(
                 coordinator,
@@ -296,7 +286,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         sensors.append(
             HuaweiWanIpv6Sensor(
                 coordinator,
@@ -312,7 +301,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         # 添加主路由器的 LAN IP 传感器
         sensors.append(
             HuaweiDeviceIpSensor(
@@ -329,7 +317,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         # 添加路由器信息传感器
         sensors.append(
             HuaweiRouterInfoSensor(
@@ -346,7 +333,6 @@ async def async_setup_entry(
                 "model",
             )
         )
-
         sensors.append(
             HuaweiRouterInfoSensor(
                 coordinator,
@@ -362,7 +348,6 @@ async def async_setup_entry(
                 "serial_number",
             )
         )
-
         sensors.append(
             HuaweiRouterInfoSensor(
                 coordinator,
@@ -378,7 +363,6 @@ async def async_setup_entry(
                 "software_version",
             )
         )
-
         sensors.append(
             HuaweiRouterInfoSensor(
                 coordinator,
@@ -394,7 +378,6 @@ async def async_setup_entry(
                 "hardware_version",
             )
         )
-
         sensors.append(
             HuaweiRouterInfoSensor(
                 coordinator,
@@ -410,7 +393,6 @@ async def async_setup_entry(
                 "harmony_version",
             )
         )
-        
         # 添加 MAC 地址传感器
         sensors.append(
             HuaweiRouterInfoSensor(
@@ -427,7 +409,6 @@ async def async_setup_entry(
                 "mac_address",
             )
         )
-
         sensors.append(
             HuaweiWanSpeedSensor(
                 coordinator,
@@ -446,7 +427,6 @@ async def async_setup_entry(
                 ),
             )
         )
-
         sensors.append(
             HuaweiWanSpeedSensor(
                 coordinator,
@@ -465,12 +445,8 @@ async def async_setup_entry(
                 ),
             )
         )
-
     async_add_entities(sensors)
-
-    watch_for_additional_routers(
-        coordinator, config_entry, integration_options, async_add_entities
-    )
+    watch_for_additional_routers(coordinator, config_entry, integration_options, async_add_entities)
 
 
 # ---------------------------
@@ -485,25 +461,23 @@ def watch_for_additional_routers(
     watcher: ActiveRoutersWatcher = ActiveRoutersWatcher(coordinator)
     skip_offline = integration_options.skip_offline_devices
     predicate = (lambda d: d.is_active and not d.is_router) if skip_offline else (lambda d: not d.is_router)
-    all_watcher: HuaweiConnectedDevicesWatcher = HuaweiConnectedDevicesWatcher(
-        coordinator, predicate
-    )
-
+    all_watcher: HuaweiConnectedDevicesWatcher = HuaweiConnectedDevicesWatcher(coordinator, predicate)
     # 初始清理：移除离线设备的旧传感器实体
     if skip_offline:
         from homeassistant.helpers import entity_registry as er_mod
+
         er = er_mod.async_get(coordinator.hass)
         for mac, device in coordinator.connected_devices.items():
             if device.is_router or device.is_active:
                 continue
             prefix = f"{coordinator.unique_id}_"
             for entity_entry in list(er.entities.values()):
-                if entity_entry.platform == DOMAIN and mac.lower().replace(':', '_') in entity_entry.unique_id.lower():
+                if entity_entry.platform == DOMAIN and mac.lower().replace(":", "_") in entity_entry.unique_id.lower():
                     er.async_remove(entity_entry.entity_id)
                     _LOGGER.debug("Cleanup offline device entity: %s", entity_entry.entity_id)
-
     # 为所有非路由器设备创建设备注册表条目（包括离线设备，确保 device_tracker 有关联）
     from homeassistant.helpers import device_registry as dr_mod
+
     dr = dr_mod.async_get(coordinator.hass)
     for mac, device in coordinator.connected_devices.items():
         if device.is_router:
@@ -537,7 +511,6 @@ def watch_for_additional_routers(
         """When a new mesh router is detected."""
         new_entities = []
         _LOGGER.debug("on_router_added called: mac=%s, name=%s", mac, router.name)
-
         if integration_options.router_clients_sensors and not known_client_sensors.get(mac):
             description = HuaweiClientsSensorEntityDescription(
                 key=mac,
@@ -552,13 +525,11 @@ def watch_for_additional_routers(
                 coordinator,
                 description,
                 integration_options,
-                lambda device, via_id=mac: device.is_active
-                and device.connected_via_id == via_id,
+                lambda device, via_id=mac: device.is_active and device.connected_via_id == via_id,
             )
             known_client_sensors[mac] = entity
             new_entities.append(entity)
             _LOGGER.debug("  Added client sensor for %s", router.name)
-
         if not known_uptime_sensors.get(mac):
             uptime_data = coordinator.get_device_uptime(mac)
             if uptime_data is not None:
@@ -577,7 +548,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added uptime sensor for %s (has uptime data)", router.name)
             else:
                 _LOGGER.debug("  Skipped uptime sensor for %s (no uptime data)", router.name)
-
         if integration_options.router_clients_sensors and not known_grouped_sensors.get(mac):
             try:
                 description = HuaweiGroupedDevicesSensorEntityDescription(
@@ -595,7 +565,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added grouped sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create grouped sensor for %s: %s", router.name, ex)
-
         # 为子路由器添加 IP 传感器
         if not known_ip_sensors.get(mac):
             try:
@@ -615,7 +584,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added IP sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create IP sensor for %s: %s", router.name, ex)
-        
         # 为子路由器添加 MAC 地址传感器
         if not known_mac_sensors.get(mac):
             try:
@@ -635,7 +603,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added MAC sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create MAC sensor for %s: %s", router.name, ex)
-        
         # 为设备添加连接类型传感器
         if not known_connection_type_sensors.get(mac):
             try:
@@ -655,7 +622,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added connection type sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connection type sensor for %s: %s", router.name, ex)
-        
         # 为设备添加信号强度传感器
         if not known_signal_sensors.get(mac):
             try:
@@ -675,7 +641,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added signal sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create signal sensor for %s: %s", router.name, ex)
-        
         # 为设备添加上传速度传感器
         if not known_upload_speed_sensors.get(mac):
             try:
@@ -695,7 +660,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added upload speed sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create upload speed sensor for %s: %s", router.name, ex)
-        
         # 为设备添加下载速度传感器
         if not known_download_speed_sensors.get(mac):
             try:
@@ -715,7 +679,6 @@ def watch_for_additional_routers(
                 _LOGGER.debug("  Added download speed sensor for %s", router.name)
             except Exception as ex:
                 _LOGGER.error("  Failed to create download speed sensor for %s: %s", router.name, ex)
-        
         # 连接速率
         if not known_connection_rate_sensors.get(mac):
             try:
@@ -734,7 +697,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connection rate sensor: %s", ex)
-        
         # WiFi频段
         if not known_frequency_sensors.get(mac):
             try:
@@ -753,7 +715,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create frequency sensor: %s", ex)
-        
         # 设备厂商
         if not known_brands_sensors.get(mac):
             try:
@@ -772,7 +733,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create brands sensor: %s", ex)
-        
         # 设备类型
         if not known_type_sensors.get(mac):
             try:
@@ -791,7 +751,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create type sensor: %s", ex)
-        
         # 发送流量
         if not known_tx_data_sensors.get(mac):
             try:
@@ -810,7 +769,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create tx data sensor: %s", ex)
-        
         # 接收流量
         if not known_rx_data_sensors.get(mac):
             try:
@@ -829,7 +787,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create rx data sensor: %s", ex)
-        
         # 家长控制
         if not known_parent_control_sensors.get(mac):
             try:
@@ -848,7 +805,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create parent control sensor: %s", ex)
-        
         # 连接至（路由器）
         if not known_connected_via_sensors.get(mac):
             try:
@@ -867,7 +823,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connected via sensor: %s", ex)
-
         if new_entities:
             _LOGGER.debug("  Adding %d entities for router %s", len(new_entities), router.name)
             async_add_entities(new_entities)
@@ -877,7 +832,6 @@ def watch_for_additional_routers(
         """When a new non-router device is detected."""
         new_entities = []
         _LOGGER.debug("on_device_added: mac=%s, name=%s", mac, device.name)
-
         if not known_ip_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -895,7 +849,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create IP sensor for %s: %s", device.name, ex)
-
         if not known_mac_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -913,7 +866,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create MAC sensor for %s: %s", device.name, ex)
-
         if not known_connection_type_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -931,7 +883,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connection type for %s: %s", device.name, ex)
-
         if not known_signal_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -949,7 +900,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create signal for %s: %s", device.name, ex)
-
         if not known_upload_speed_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -967,7 +917,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create upload speed for %s: %s", device.name, ex)
-
         if not known_download_speed_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -985,7 +934,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create download speed for %s: %s", device.name, ex)
-
         if not known_connection_rate_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1003,7 +951,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connection rate for %s: %s", device.name, ex)
-
         if not known_frequency_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1021,7 +968,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create frequency for %s: %s", device.name, ex)
-
         if not known_brands_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1039,7 +985,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create brands for %s: %s", device.name, ex)
-
         if not known_type_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1057,7 +1002,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create type for %s: %s", device.name, ex)
-
         if not known_tx_data_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1075,7 +1019,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create tx data for %s: %s", device.name, ex)
-
         if not known_rx_data_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1093,7 +1036,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create rx data for %s: %s", device.name, ex)
-
         if not known_parent_control_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1111,7 +1053,6 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create parent control for %s: %s", device.name, ex)
-
         if not known_connected_via_sensors.get(mac):
             try:
                 description = HuaweiWanSensorEntityDescription(
@@ -1129,23 +1070,28 @@ def watch_for_additional_routers(
                 new_entities.append(entity)
             except Exception as ex:
                 _LOGGER.error("  Failed to create connected via for %s: %s", device.name, ex)
-
         if new_entities:
-            _LOGGER.debug(
-                "  Adding %d entities for device %s", len(new_entities), device.name
-            )
+            _LOGGER.debug("  Adding %d entities for device %s", len(new_entities), device.name)
             async_add_entities(new_entities)
 
     @callback
     def on_device_removed(er, mac, device):
         """Remove all sensor entities for a device that went offline."""
         sensor_dicts = [
-            known_ip_sensors, known_mac_sensors, known_connection_type_sensors,
-            known_signal_sensors, known_upload_speed_sensors, known_download_speed_sensors,
-            known_connection_rate_sensors, known_frequency_sensors,
-            known_brands_sensors, known_type_sensors,
-            known_tx_data_sensors, known_rx_data_sensors,
-            known_parent_control_sensors, known_connected_via_sensors,
+            known_ip_sensors,
+            known_mac_sensors,
+            known_connection_type_sensors,
+            known_signal_sensors,
+            known_upload_speed_sensors,
+            known_download_speed_sensors,
+            known_connection_rate_sensors,
+            known_frequency_sensors,
+            known_brands_sensors,
+            known_type_sensors,
+            known_tx_data_sensors,
+            known_rx_data_sensors,
+            known_parent_control_sensors,
+            known_connected_via_sensors,
         ]
         for d in sensor_dicts:
             entity = d.pop(mac, None)
@@ -1181,9 +1127,7 @@ class HuaweiSensor(CoordinatorEntity[HuaweiDataUpdateCoordinator], SensorEntity)
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_device_info = coordinator.get_device_info(description.device_mac)
-        self._attr_unique_id = generate_entity_unique_id(
-            coordinator, description.function_uid, description.device_mac
-        )
+        self._attr_unique_id = generate_entity_unique_id(coordinator, description.function_uid, description.device_mac)
         self.entity_id = generate_entity_id(
             coordinator,
             _ENTITY_DOMAIN,
@@ -1225,14 +1169,15 @@ class HuaweiUptimeSensor(HuaweiSensor):
         """Return if entity is available."""
         if self.entity_description.device_mac is None:
             return self.coordinator.is_router_online(None)
-        return self.coordinator.is_router_online(self.entity_description.device_mac) or self.coordinator.is_router_online(None)
+        return self.coordinator.is_router_online(
+            self.entity_description.device_mac
+        ) or self.coordinator.is_router_online(None)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         device_mac = self.entity_description.device_mac
         uptime_seconds = None
         router_info = self.coordinator.get_router_info(device_mac)
-
         if router_info and router_info.uptime:
             uptime_seconds = router_info.uptime
         elif device_mac:
@@ -1240,14 +1185,12 @@ class HuaweiUptimeSensor(HuaweiSensor):
             if device_data:
                 uptime_seconds = device_data
                 router_info = self.coordinator.get_router_info()
-
         if uptime_seconds:
             self._attr_native_value = get_past_moment(uptime_seconds)
             self._attr_extra_state_attributes["seconds"] = uptime_seconds
         else:
             self._attr_native_value = None
             self._attr_extra_state_attributes["seconds"] = None
-
         if device_mac:
             connected_device = self.coordinator.connected_devices.get(device_mac)
             if connected_device:
@@ -1259,12 +1202,10 @@ class HuaweiUptimeSensor(HuaweiSensor):
                 self._attr_extra_state_attributes["ip_address"] = None
                 self._attr_extra_state_attributes["mac_address"] = str(device_mac)
                 self._attr_extra_state_attributes["device_name"] = device_mac
-
         if router_info:
             self._attr_extra_state_attributes["serial_number"] = router_info.serial_number
             self._attr_extra_state_attributes["model"] = router_info.model
             self._attr_extra_state_attributes["software_version"] = router_info.software_version
-
         super()._handle_coordinator_update()
 
 
@@ -1284,7 +1225,6 @@ class HuaweiConnectedDevicesSensor(HuaweiSensor):
     ) -> None:
         """Initialize."""
         super().__init__(coordinator, description)
-
         self._integration_options = integration_options
         self._attr_native_value = 0
         self._attr_extra_state_attributes = {}
@@ -1295,14 +1235,14 @@ class HuaweiConnectedDevicesSensor(HuaweiSensor):
         """Return if entity is available."""
         if self.entity_description.device_mac is None:
             return self.coordinator.is_router_online(None)
-        return self.coordinator.is_router_online(self.entity_description.device_mac) or self.coordinator.is_router_online(None)
+        return self.coordinator.is_router_online(
+            self.entity_description.device_mac
+        ) or self.coordinator.is_router_online(None)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-
         tags_enabled = self._integration_options.devices_tags
-
         total_clients: int = 0
         guest_clients: int = 0
         hilink_clients: int = 0
@@ -1310,25 +1250,19 @@ class HuaweiConnectedDevicesSensor(HuaweiSensor):
         lan_clients: int = 0
         wifi_2_4_clients: int = 0
         wifi_5_clients: int = 0
-
         untagged_clients: int = 0
         tagged_devices: dict[DEVICE_TAG, int] = {}
-
         if tags_enabled:
             for tag in self.coordinator.tags_map.get_all_tags():
                 tagged_devices[tag] = 0
-
         for device in self.coordinator.connected_devices.values():
             if not self._devices_predicate(device):
                 continue
-
             total_clients += 1
-
             if device.is_guest:
                 guest_clients += 1
             if device.is_hilink:
                 hilink_clients += 1
-
             if device.interface_type == HuaweiInterfaceType.INTERFACE_LAN:
                 lan_clients += 1
             elif device.interface_type == HuaweiInterfaceType.INTERFACE_2_4GHZ:
@@ -1337,7 +1271,6 @@ class HuaweiConnectedDevicesSensor(HuaweiSensor):
             elif device.interface_type == HuaweiInterfaceType.INTERFACE_5GHZ:
                 wireless_clients += 1
                 wifi_5_clients += 1
-
             if tags_enabled:
                 if device.tags is None or len(device.tags) == 0:
                     untagged_clients += 1
@@ -1347,21 +1280,17 @@ class HuaweiConnectedDevicesSensor(HuaweiSensor):
                             tagged_devices[tag] += 1
                         else:
                             tagged_devices[tag] = 1
-
         self._attr_native_value = total_clients
-
         self._attr_extra_state_attributes["guest_clients"] = guest_clients
         self._attr_extra_state_attributes["hilink_clients"] = hilink_clients
         self._attr_extra_state_attributes["wireless_clients"] = wireless_clients
         self._attr_extra_state_attributes["lan_clients"] = lan_clients
         self._attr_extra_state_attributes["wifi_2_4_clients"] = wifi_2_4_clients
         self._attr_extra_state_attributes["wifi_5_clients"] = wifi_5_clients
-
         if tags_enabled:
             for tag, count in tagged_devices.items():
                 self._attr_extra_state_attributes[f"tagged_{tag}_clients"] = count
             self._attr_extra_state_attributes[f"untagged_clients"] = untagged_clients
-
         super()._handle_coordinator_update()
 
 
@@ -1388,12 +1317,10 @@ class HuaweiDiagnosticsSensor(HuaweiSensor):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         diagnostics = self.coordinator.diagnostics_info
-
         if diagnostics.get("primary_router_online"):
             self._attr_native_value = "ok"
         else:
             self._attr_native_value = "error"
-
         self._attr_extra_state_attributes = {
             "primary_router_online": diagnostics.get("primary_router_online", False),
             "primary_router_name": diagnostics.get("primary_router_name", "Unknown"),
@@ -1408,7 +1335,6 @@ class HuaweiDiagnosticsSensor(HuaweiSensor):
             "time_control_items_count": diagnostics.get("time_control_items_count", 0),
             "zones_count": diagnostics.get("zones_count", 0),
         }
-
         super()._handle_coordinator_update()
 
 
@@ -1435,32 +1361,40 @@ class HuaweiGroupedDevicesSensor(HuaweiSensor):
         """Return if entity is available."""
         if self.entity_description.device_mac is None:
             return self.coordinator.is_router_online(None)
-        return self.coordinator.is_router_online(self.entity_description.device_mac) or self.coordinator.is_router_online(None)
+        return self.coordinator.is_router_online(
+            self.entity_description.device_mac
+        ) or self.coordinator.is_router_online(None)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         devices = []
         target_mac = self.entity_description.device_mac
-
         for mac, device in self.coordinator.connected_devices.items():
             if target_mac is None:
                 if device.is_active:
                     connected_to = device.connected_via_name or device.connected_via_id or "主路由"
-                    devices.append({
-                        "name": device.name,
-                        "ip": device.ip_address or "",
-                        "mac": device.mac,
-                        "connected_to": connected_to,
-                    })
+                    devices.append(
+                        {
+                            "name": device.name,
+                            "ip": device.ip_address or "",
+                            "mac": device.mac,
+                            "connected_to": connected_to,
+                        }
+                    )
             else:
                 if device.connected_via_id == target_mac:
-                    devices.append({
-                        "name": device.name,
-                        "ip": device.ip_address or "",
-                        "mac": device.mac,
-                        "interface": device.interface_type.value if hasattr(device.interface_type, 'value') else (str(device.interface_type) if device.interface_type else ""),
-                    })
-
+                    devices.append(
+                        {
+                            "name": device.name,
+                            "ip": device.ip_address or "",
+                            "mac": device.mac,
+                            "interface": (
+                                device.interface_type.value
+                                if hasattr(device.interface_type, "value")
+                                else (str(device.interface_type) if device.interface_type else "")
+                            ),
+                        }
+                    )
         devices.sort(key=lambda x: x.get("name", ""))
         self._device_list = devices
         self._device_count = len(devices)
@@ -1510,6 +1444,7 @@ class HuaweiWanStatusSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiRouterInfoSensor(HuaweiSensor):
     """路由器信息传感器 - 显示路由器型号、序列号等信息"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1533,7 +1468,6 @@ class HuaweiRouterInfoSensor(HuaweiSensor):
     def _handle_coordinator_update(self) -> None:
         device_mac = self.entity_description.device_mac
         router_info = self.coordinator.get_router_info(device_mac)
-        
         if router_info:
             if self._info_type == "model":
                 self._attr_native_value = router_info.model
@@ -1548,11 +1482,9 @@ class HuaweiRouterInfoSensor(HuaweiSensor):
             elif self._info_type == "mac_address":
                 # 获取主路由器 MAC 地址 - 尝试多种方式
                 self._attr_native_value = router_info.mac_address if router_info else None
-                
                 # 方式1: 从router_info获取
                 if self._attr_native_value is None and router_info:
                     self._attr_native_value = router_info.mac_address
-                
                 # 方式2: 从连接设备中查找匹配cfg_host的设备
                 if self._attr_native_value is None:
                     for mac, cd in self.coordinator._connected_devices.items():
@@ -1560,7 +1492,6 @@ class HuaweiRouterInfoSensor(HuaweiSensor):
                             self._attr_native_value = str(mac)
                             _LOGGER.debug("Found main router MAC from connected devices: %s", self._attr_native_value)
                             break
-                
                 # 方式3: 如果是主路由器(无device_mac)，尝试查找is_router=True的设备
                 if self._attr_native_value is None and device_mac is None:
                     for mac, cd in self.coordinator._connected_devices.items():
@@ -1568,15 +1499,15 @@ class HuaweiRouterInfoSensor(HuaweiSensor):
                             self._attr_native_value = str(mac)
                             _LOGGER.debug("Found main router MAC from router devices: %s", self._attr_native_value)
                             break
-                
                 # 方式4: 如果还是没找到，尝试查找名称包含"router"或"网关"的设备
                 if self._attr_native_value is None and device_mac is None:
                     for mac, cd in self.coordinator._connected_devices.items():
                         if cd.name and ("router" in cd.name.lower() or "网关" in cd.name or "Gateway" in cd.name):
                             self._attr_native_value = str(mac)
-                            _LOGGER.debug("Found main router MAC from device name: %s (%s)", self._attr_native_value, cd.name)
+                            _LOGGER.debug(
+                                "Found main router MAC from device name: %s (%s)", self._attr_native_value, cd.name
+                            )
                             break
-                
                 # 方式5: 从ARP表获取主路由器MAC
                 if self._attr_native_value is None and device_mac is None:
                     self._attr_native_value = self.coordinator.get_primary_router_mac()
@@ -1614,6 +1545,7 @@ class HuaweiWanIpSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceIpSensor(HuaweiSensor):
     """IP地址传感器 - 显示连接设备的IP地址"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1648,6 +1580,7 @@ class HuaweiDeviceIpSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceMacSensor(HuaweiSensor):
     """MAC地址传感器 - 显示连接设备的MAC地址"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1670,30 +1603,34 @@ class HuaweiDeviceMacSensor(HuaweiSensor):
         else:
             # 主路由器 - 尝试多种方式获取MAC地址
             self._attr_native_value = None
-            
             # 方式1: 从连接设备中查找匹配cfg_host的设备
             for mac, cd in self.coordinator._connected_devices.items():
                 if cd.ip_address == self.coordinator.cfg_host:
                     self._attr_native_value = str(mac)
-                    _LOGGER.debug("HuaweiDeviceMacSensor: Found main router MAC from IP match: %s", self._attr_native_value)
+                    _LOGGER.debug(
+                        "HuaweiDeviceMacSensor: Found main router MAC from IP match: %s", self._attr_native_value
+                    )
                     break
-            
             # 方式2: 查找is_router=True的设备
             if self._attr_native_value is None:
                 for mac, cd in self.coordinator._connected_devices.items():
                     if cd.is_router:
                         self._attr_native_value = str(mac)
-                        _LOGGER.debug("HuaweiDeviceMacSensor: Found main router MAC from is_router: %s", self._attr_native_value)
+                        _LOGGER.debug(
+                            "HuaweiDeviceMacSensor: Found main router MAC from is_router: %s", self._attr_native_value
+                        )
                         break
-            
             # 方式3: 查找名称包含"router"或"网关"的设备
             if self._attr_native_value is None:
                 for mac, cd in self.coordinator._connected_devices.items():
                     if cd.name and ("router" in cd.name.lower() or "网关" in cd.name or "Gateway" in cd.name):
                         self._attr_native_value = str(mac)
-                        _LOGGER.debug("HuaweiDeviceMacSensor: Found main router MAC from name: %s (%s)", self._attr_native_value, cd.name)
+                        _LOGGER.debug(
+                            "HuaweiDeviceMacSensor: Found main router MAC from name: %s (%s)",
+                            self._attr_native_value,
+                            cd.name,
+                        )
                         break
-            
             # 方式4: 从ARP表获取主路由器MAC
             if self._attr_native_value is None:
                 self._attr_native_value = self.coordinator.get_primary_router_mac()
@@ -1707,6 +1644,7 @@ class HuaweiDeviceMacSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceConnectionTypeSensor(HuaweiSensor):
     """连接类型传感器 - 显示设备的连接方式(WiFi/有线等)"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1739,6 +1677,7 @@ class HuaweiDeviceConnectionTypeSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceSignalSensor(HuaweiSensor):
     """信号强度传感器 - 显示设备的WiFi信号强度"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: int | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1773,6 +1712,7 @@ class HuaweiDeviceSignalSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceUploadSpeedSensor(HuaweiSensor):
     """上传速度传感器 - 显示设备的上传速度"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: float | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1807,6 +1747,7 @@ class HuaweiDeviceUploadSpeedSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceDownloadSpeedSensor(HuaweiSensor):
     """下载速度传感器 - 显示设备的下载速度"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: float | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1841,6 +1782,7 @@ class HuaweiDeviceDownloadSpeedSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceConnectionRateSensor(HuaweiSensor):
     """WiFi连接速率传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: int | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1870,6 +1812,7 @@ class HuaweiDeviceConnectionRateSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceFrequencySensor(HuaweiSensor):
     """WiFi频段传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1898,6 +1841,7 @@ class HuaweiDeviceFrequencySensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceBrandsSensor(HuaweiSensor):
     """设备厂商传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1926,6 +1870,7 @@ class HuaweiDeviceBrandsSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceTypeSensor(HuaweiSensor):
     """设备类型传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1954,6 +1899,7 @@ class HuaweiDeviceTypeSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceTxDataSensor(HuaweiSensor):
     """发送流量传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1986,6 +1932,7 @@ class HuaweiDeviceTxDataSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceRxDataSensor(HuaweiSensor):
     """接收流量传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -2018,6 +1965,7 @@ class HuaweiDeviceRxDataSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceParentControlSensor(HuaweiSensor):
     """家长控制传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: bool | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -2046,6 +1994,7 @@ class HuaweiDeviceParentControlSensor(HuaweiSensor):
 # ---------------------------
 class HuaweiDeviceConnectedViaSensor(HuaweiSensor):
     """连接至路由器传感器"""
+
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -2126,5 +2075,3 @@ class HuaweiWanSpeedSensor(HuaweiSensor):
         else:
             self._attr_native_value = 0.0
         super()._handle_coordinator_update()
-
-

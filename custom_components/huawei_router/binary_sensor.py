@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 import logging
 from typing import Final
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -14,7 +13,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
 from .client.classes import MAC_ADDR
 from .helpers import (
     generate_entity_id,
@@ -57,9 +55,7 @@ class HuaweiWanSensorEntityDescription(HuaweiBinarySensorEntityDescription):
 
     native_unit_of_measurement: str | None = None
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
-    device_class: BinarySensorDeviceClass | str | None = (
-        BinarySensorDeviceClass.CONNECTIVITY
-    )
+    device_class: BinarySensorDeviceClass | str | None = BinarySensorDeviceClass.CONNECTIVITY
 
 
 # ---------------------------
@@ -72,7 +68,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up binary sensors for Huawei component."""
     coordinator = get_coordinator(hass, config_entry)
-
     sensors = [
         HuaweiWanBinarySensor(
             coordinator,
@@ -87,16 +82,13 @@ async def async_setup_entry(
             ),
         )
     ]
-
     async_add_entities(sensors)
 
 
 # ---------------------------
 #   HuaweiBinarySensor
 # ---------------------------
-class HuaweiBinarySensor(
-    CoordinatorEntity[HuaweiDataUpdateCoordinator], BinarySensorEntity
-):
+class HuaweiBinarySensor(CoordinatorEntity[HuaweiDataUpdateCoordinator], BinarySensorEntity):
     entity_description: HuaweiBinarySensorEntityDescription
     _attr_has_entity_name = True
 
@@ -109,9 +101,7 @@ class HuaweiBinarySensor(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_device_info = coordinator.get_device_info(description.device_mac)
-        self._attr_unique_id = generate_entity_unique_id(
-            coordinator, description.function_uid, description.device_mac
-        )
+        self._attr_unique_id = generate_entity_unique_id(coordinator, description.function_uid, description.device_mac)
         self.entity_id = generate_entity_id(
             coordinator,
             ENTITY_DOMAIN,
@@ -152,16 +142,12 @@ class HuaweiWanBinarySensor(HuaweiBinarySensor):
         wan_info = self.coordinator.get_wan_info()
         if not wan_info:
             return
-
         self._attr_is_on = wan_info.connected
         self._attr_extra_state_attributes["external_ip"] = wan_info.address
         self._attr_extra_state_attributes["uptime_seconds"] = wan_info.uptime
-        self._attr_extra_state_attributes["connected_at"] = get_past_moment(
-            wan_info.uptime
-        )
+        self._attr_extra_state_attributes["connected_at"] = get_past_moment(wan_info.uptime)
         self._attr_extra_state_attributes["upload_rate_kilobytes_s"] = wan_info.upload_rate
         self._attr_extra_state_attributes["download_rate_kilobytes_s"] = wan_info.download_rate
         self._attr_extra_state_attributes["upload_rate"] = get_readable_rate(wan_info.upload_rate)
         self._attr_extra_state_attributes["download_rate"] = get_readable_rate(wan_info.download_rate)
-
         super()._handle_coordinator_update()

@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Callable, Dict, Iterable, Tuple, Final
-
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from .client.classes import MAC_ADDR, HuaweiFilterItem
 from .const import DOMAIN
@@ -129,9 +128,7 @@ class PortMapping:
         self._host_ip = host_ip
         self._host_mac = host_mac
 
-    def update_info(
-        self, name: str, enabled: bool, host_name: str, host_ip: str, host_mac: str
-    ) -> None:
+    def update_info(self, name: str, enabled: bool, host_name: str, host_ip: str, host_mac: str) -> None:
         self._name = name
         self._enabled = enabled
         self._host_name = host_name
@@ -317,24 +314,19 @@ EVENT_TYPE_DEVICE: Final = DOMAIN + "_device_event"
 class HuaweiEvents:
     def __init__(self, hass: HomeAssistant):
         self._hass: HomeAssistant = hass
-        self._subscriptions: dict[CALLBACK_TYPE, tuple[HANDLER_TYPE, object | None]] = (
-            {}
-        )
+        self._subscriptions: dict[CALLBACK_TYPE, tuple[HANDLER_TYPE, object | None]] = {}
 
     # ---------------------------
     #   async_subscribe_event
     # ---------------------------
     @callback
-    def async_subscribe_event(
-        self, event_types: list[str], handler: HANDLER_TYPE
-    ) -> Callable[[], None]:
+    def async_subscribe_event(self, event_types: list[str], handler: HANDLER_TYPE) -> Callable[[], None]:
         @callback
         def remove_subscription() -> None:
             """Remove update listener."""
             self._subscriptions.pop(remove_subscription)
 
         self._subscriptions[remove_subscription] = (handler, event_types)
-
         return remove_subscription
 
     # ---------------------------
@@ -342,7 +334,6 @@ class HuaweiEvents:
     # ---------------------------
     def _fire(self, event_type: str, event_data: dict[str, Any]) -> None:
         self._hass.bus.fire(event_type, event_data)
-
         event_subtype = event_data.get("type")
         if event_subtype:
             for handler, target_types in list(self._subscriptions.values()):

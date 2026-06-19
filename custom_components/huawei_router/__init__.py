@@ -87,22 +87,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     integration_options = HuaweiIntegrationOptions(config_entry)
 
     if integration_options.devices_tags:
-        tags_store = Store(
-            hass, STORAGE_VERSION, f"huawei_mesh_{config_entry.entry_id}_tags"
-        )
+        tags_store = Store(hass, STORAGE_VERSION, f"huawei_mesh_{config_entry.entry_id}_tags")
     else:
         tags_store = None
 
     if integration_options.device_tracker_zones:
-        zones_store = Store(
-            hass, STORAGE_VERSION, f"huawei_mesh_{config_entry.entry_id}_router_zones"
-        )
+        zones_store = Store(hass, STORAGE_VERSION, f"huawei_mesh_{config_entry.entry_id}_router_zones")
     else:
         zones_store = None
 
-    coordinator = HuaweiDataUpdateCoordinator(
-        hass, config_entry, integration_options, tags_store, zones_store
-    )
+    coordinator = HuaweiDataUpdateCoordinator(hass, config_entry, integration_options, tags_store, zones_store)
     await coordinator.async_config_entry_first_refresh()
 
     config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
@@ -140,10 +134,9 @@ async def _async_update_primary_router_name(hass, config_entry, coordinator) -> 
         if (DOMAIN, primary_serial) in id_tuples and device.name_by_user is None:
             if device.name != actual_name:
                 device_reg.async_update_device(device.id, name=actual_name)
-                _LOGGER.info(
-                    "主路由设备名称已更新: %s -> %s", device.name, actual_name
-                )
+                _LOGGER.info("主路由设备名称已更新: %s -> %s", device.name, actual_name)
             break
+
 
 # ---------------------------
 #   update_listener
@@ -166,9 +159,7 @@ async def async_update_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 # ---------------------------
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(
-        config_entry, get_loaded_platforms(hass, config_entry)
-    )
+    unload_ok = await hass.config_entries.async_unload_platforms(config_entry, get_loaded_platforms(hass, config_entry))
     if unload_ok:
         coordinator = pop_coordinator(hass, config_entry)
         if coordinator and isinstance(coordinator, HuaweiDataUpdateCoordinator):
@@ -187,9 +178,7 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     if config_entry.version == 1:
         _LOGGER.debug("Migrating to version 2")
         scan_interval = (
-            updated_data.pop(CONF_SCAN_INTERVAL)
-            if CONF_SCAN_INTERVAL in updated_data
-            else DEFAULT_SCAN_INTERVAL
+            updated_data.pop(CONF_SCAN_INTERVAL) if CONF_SCAN_INTERVAL in updated_data else DEFAULT_SCAN_INTERVAL
         )
 
         # use True instead of default values so as not to change the behavior of existing integrations
@@ -229,9 +218,7 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
         updated_options[OPT_AUTO_ASSOCIATE_DEVICES] = DEFAULT_AUTO_ASSOCIATE_DEVICES
         config_entry.version = 7
 
-    hass.config_entries.async_update_entry(
-        config_entry, data=updated_data, options=updated_options
-    )
+    hass.config_entries.async_update_entry(config_entry, data=updated_data, options=updated_options)
 
     _LOGGER.info("Migration to version %s successful", config_entry.version)
 
