@@ -1,8 +1,6 @@
 """Huawei Controller for Huawei Router."""
 
 from __future__ import annotations
-import asyncio
-import json
 from datetime import timedelta
 from functools import wraps
 import logging
@@ -20,7 +18,6 @@ from homeassistant.const import (
 )
 
 from homeassistant.core import HomeAssistant, callback, CALLBACK_TYPE
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_registry import EntityRegistry
@@ -156,8 +153,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         self._logger = logging.getLogger(f"{__name__} ({config_entry.data[CONF_NAME]})")
         self._is_unloaded: bool = False
         self._is_repeater: bool = False
-        self._sonoff_storage_cache: dict[str, str] | None = None
-        self._sonoff_cache_tick: int = 0
         self._integration_options: HuaweiIntegrationOptions = integration_options
         self._events: HuaweiEvents = HuaweiEvents(hass)
         self._tags_map: TagsMap | None = (
@@ -171,6 +166,7 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
             else None
         )
         self._connected_devices: dict[MAC_ADDR, ConnectedDevice] = {}
+        self._zones: list[ZoneInfo] = []
         self._wan_info: HuaweiConnectionInfo | None = None
         self._config: ConfigEntry = config_entry
         self._routersWatcher: ActiveRoutersWatcher = ActiveRoutersWatcher(self)
@@ -410,7 +406,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         await self._update_zones()
         await self._update_wlan_filter_info()
         await self._update_connected_devices()
-        await self._auto_associate_devices()
         await self._update_apis()
         await self._update_router_infos()
         await self._update_wan_info()
@@ -1097,271 +1092,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
         """Perform the specified action."""
         api = self._select_api(device_mac)
         await api.execute_action(action)
-
-    # ---------------------------
-    #   _get_sonoff_device_ips
-    # ---------------------------
-    def _get_sonoff_device_ips_from_hass_data(self) -> dict[str, str]:
-        """从 hass.data['sonoff'] 获取 device_id → IP 映射（实时，零 IO）。
-        hass.data["sonoff"] 结构: {entry_id: XRegistry, ...}
-        XRegistry.devices: {deviceid: {"host": "IP:Port", "name": "设备名", ...}, ...}
-        """
-        result: dict[str, str] = {}
-        sonoff_data = self.hass.data.get("sonoff")
-        if not sonoff_data:
-            return result
-        for registry in sonoff_data.values():
-            devices = getattr(registry, "devices", None)
-            if not devices:
-                continue
-            for did, xdev in devices.items():
-                host = ""
-                if isinstance(xdev, dict):
-                    host = xdev.get("host", "")
-                elif hasattr(xdev, "host"):
-                    host = xdev.host or ""
-                if host:
-                    ip = host.split(":")[0] if ":" in host else host
-                    result[did] = ip
-        return result
-
-    def _get_sonoff_device_name(self, device_id: str) -> str | None:
-        """从 hass.data['sonoff'] 获取 Sonoff 设备的原始名称。"""
-        sonoff_data = self.hass.data.get("sonoff")
-        if not sonoff_data:
-            return None
-        for registry in sonoff_data.values():
-            devices = getattr(registry, "devices", None)
-            if not devices:
-                continue
-            if device_id in devices:
-                xdev = devices[device_id]
-                if isinstance(xdev, dict):
-                    return xdev.get("name")
-                elif hasattr(xdev, "name"):
-                    return xdev.name
-        return None
-
-    # ---------------------------
-    #   _read_sonoff_storage
-    # ---------------------------
-    def _load_json_sync(self, filepath: str) -> dict:
-        with open(filepath, encoding="utf-8") as f:
-            return json.load(f)
-
-    async def _read_sonoff_storage_ips(self) -> dict[str, str]:
-        """从 Sonoff 存储文件提取 device_id → IP 映射（回退数据源）。
-        数据源: /config/.storage/sonoff/*.json
-        字段: extra.host = "IP:Port"
-        """
-        import os
-
-        config_dir = self.hass.config.config_dir
-        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
-        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
-            return {}
-        result: dict[str, str] = {}
-        try:
-            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
-        except OSError:
-            return {}
-        for filename in filenames:
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(sonoff_dir, filename)
-            try:
-                data = await asyncio.to_thread(self._load_json_sync, filepath)
-            except Exception:
-                continue
-            for device in data.get("data", []):
-                device_id = device.get("deviceid")
-                extra = device.get("extra") or {}
-                host = extra.get("host", "")
-                if device_id and host:
-                    ip = host.split(":")[0] if ":" in host else host
-                    result[device_id] = ip
-        return result
-
-    async def _get_sonoff_storage_name(self, device_id: str) -> str | None:
-        """从 Sonoff 存储文件获取设备名称。
-        数据源: /config/.storage/sonoff/*.json
-        字段: name
-        """
-        import os
-
-        config_dir = self.hass.config.config_dir
-        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
-        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
-            return None
-        try:
-            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
-        except OSError:
-            return None
-        for filename in filenames:
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(sonoff_dir, filename)
-            try:
-                data = await asyncio.to_thread(self._load_json_sync, filepath)
-            except Exception:
-                continue
-            for device in data.get("data", []):
-                if device.get("deviceid") == device_id:
-                    return device.get("name")
-        return None
-
-    async def _restore_sonoff_device_names(self, dev_reg) -> None:
-        """从 Sonoff 存储文件恢复所有 Sonoff 设备的原始名称。
-        华为路由器集成添加时可能覆盖了 Sonoff 设备的名称，需要恢复。
-        """
-        import os
-
-        config_dir = self.hass.config.config_dir
-        sonoff_dir = os.path.join(config_dir, ".storage", "sonoff")
-        if not await asyncio.to_thread(os.path.isdir, sonoff_dir):
-            return
-        try:
-            filenames = await asyncio.to_thread(os.listdir, sonoff_dir)
-        except OSError:
-            return
-        device_names: dict[str, str] = {}
-        for filename in filenames:
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(sonoff_dir, filename)
-            try:
-                data = await asyncio.to_thread(self._load_json_sync, filepath)
-            except Exception:
-                continue
-            for device in data.get("data", []):
-                device_id = device.get("deviceid")
-                name = device.get("name")
-                if device_id and name:
-                    device_names[device_id] = name
-        restored = 0
-        for device in dev_reg.devices.values():
-            if not any(i[0] == "sonoff" for i in device.identifiers):
-                continue
-            for id_ in device.identifiers:
-                if id_[0] != "sonoff":
-                    continue
-                device_id = id_[1]
-                original_name = device_names.get(device_id)
-                if original_name and device.name != original_name:
-                    dev_reg.async_update_device(
-                        device.id,
-                        name_by_user=original_name,
-                    )
-                    restored += 1
-        if restored > 0:
-            self._logger.info("Restored %d Sonoff device names", restored)
-
-    # ---------------------------
-    #   _auto_associate_devices
-    # ---------------------------
-    @suppress_update_exception("Can not auto associate devices: %s")
-    async def _auto_associate_devices(self) -> None:
-        """自动将 Sonoff 设备与华为路由器设备合并。
-        策略:
-            1. 通过 IP 桥接找到 Sonoff device_id 对应的 MAC
-            2. 在 device_registry 中找到华为路由器创建的同 MAC 设备
-            3. 将华为路由器设备的实体（WiFi开关、device_tracker）迁移到 Sonoff 设备
-            4. 删除空的华为路由器设备
-            5. 合并 identifiers，确保华为路由器集成仍能找到设备
-        这样 Sonoff 设备卡片上就会同时显示:
-            - Sonoff 的开关/传感器实体
-            - 华为路由器的 WiFi 开关和 device_tracker 实体
-        """
-        if not self._integration_options.auto_associate_devices:
-            return
-        deviceid_to_ip = self._get_sonoff_device_ips_from_hass_data()
-        self._sonoff_cache_tick += 1
-        if (not deviceid_to_ip and self._sonoff_cache_tick >= 20) or self._sonoff_storage_cache is None:
-            self._sonoff_storage_cache = await self._read_sonoff_storage_ips()
-            self._sonoff_cache_tick = 0
-        for did, ip in self._sonoff_storage_cache.items():
-            if did not in deviceid_to_ip:
-                deviceid_to_ip[did] = ip
-        if not deviceid_to_ip:
-            return
-        ip_to_mac: dict[str, str] = {}
-        for mac, device in self._connected_devices.items():
-            if device.ip_address:
-                ip_to_mac[device.ip_address] = mac.lower()
-        dev_reg = dr.async_get(self.hass)
-        ent_reg = entity_registry.async_get(self.hass)
-        linked = 0
-        merged = 0
-        skipped = 0
-        for device_id, ip in deviceid_to_ip.items():
-            mac = ip_to_mac.get(ip)
-            if not mac:
-                skipped += 1
-                continue
-            sonoff_device = dev_reg.async_get_device(identifiers={("sonoff", device_id)})
-            if not sonoff_device:
-                continue
-            existing_macs = {c[1] for c in sonoff_device.connections if c[0] == "mac"}
-            if mac not in existing_macs:
-                dev_reg.async_update_device(
-                    sonoff_device.id,
-                    new_connections={("mac", mac)},
-                )
-                linked += 1
-            huawei_device = dev_reg.async_get_device(identifiers={(DOMAIN, mac.upper())})
-            if not huawei_device or huawei_device.id == sonoff_device.id:
-                continue
-            sonoff_original_name = self._get_sonoff_device_name(device_id)
-            if sonoff_original_name and sonoff_original_name != sonoff_device.name:
-                dev_reg.async_update_device(
-                    sonoff_device.id,
-                    name_by_user=sonoff_original_name,
-                )
-            huawei_entities = entity_registry.async_entries_for_device(ent_reg, huawei_device.id)
-            for ent in huawei_entities:
-                ent_reg.async_update_entity(ent.entity_id, device_id=sonoff_device.id)
-            existing_ids = {id_[0] for id_ in sonoff_device.identifiers}
-            for id_ in huawei_device.identifiers:
-                if id_[0] not in existing_ids:
-                    dev_reg.async_update_device(
-                        sonoff_device.id,
-                        new_identifiers={id_},
-                    )
-            dev_reg.async_remove_device(huawei_device.id)
-            merged += 1
-        await self._restore_sonoff_device_names(dev_reg)
-        if linked > 0 or merged > 0 or skipped > 0:
-            self._logger.info(
-                "Sonoff auto-associate: linked %d, merged %d, skipped %d",
-                linked,
-                merged,
-                skipped,
-            )
-        orphan_fixed = 0
-        config_entry_id = self.config_entry.entry_id
-        for ent in entity_registry.async_entries_for_config_entry(ent_reg, config_entry_id):
-            if not ent.entity_id.startswith("device_tracker.") or ent.device_id:
-                continue
-            uid = ent.unique_id or ""
-            parts = uid.split("_")
-            mac_part = parts[-1] if ":" in parts[-1] else ""
-            if not mac_part:
-                continue
-            mac_upper = mac_part.upper()
-            mac_lower = mac_upper.lower()
-            device_entry = dev_reg.async_get_device(identifiers={(DOMAIN, mac_upper)})
-            if not device_entry:
-                device_entry = dev_reg.async_get_or_create(
-                    config_entry_id=config_entry_id,
-                    identifiers={(DOMAIN, mac_upper)},
-                    connections={("mac", mac_lower)},
-                    manufacturer=ATTR_MANUFACTURER,
-                    name=mac_upper,
-                )
-            ent_reg.async_update_entity(ent.entity_id, device_id=device_entry.id)
-            orphan_fixed += 1
-        if orphan_fixed > 0:
-            self._logger.info("Fixed %d orphan device_tracker entities", orphan_fixed)
 
     # ---------------------------
     #   async_subscribe_event

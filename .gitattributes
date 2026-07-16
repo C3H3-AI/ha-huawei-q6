@@ -1,0 +1,9 @@
+# Normalize all text files to LF on checkout (Home Assistant convention).
+# Prevents the mixed CR / CRLF / LF line-ending mess flagged in the audit (P0).
+* text=auto eol=lf
+
+*.py text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

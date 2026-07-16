@@ -80,8 +80,6 @@ def rsa_encode(data: str, rsa_key: HuaweiRsaPublicKey) -> str:
 
     i = 0
 
-    max_length_errors_count = 10
-
     while i < chunks_count:
 
         index = i * _RSA_CHUNK_SIZE
@@ -92,16 +90,16 @@ def rsa_encode(data: str, rsa_key: HuaweiRsaPublicKey) -> str:
 
         if len(encoded_chunk) != len(rsa_key.rsan):
 
-            max_length_errors_count -= 1
+            raise CryptographyError(
 
-            if max_length_errors_count < 0:
+                f"RSA encoded chunk length ({len(encoded_chunk)}) does not match "
 
-                raise CryptographyError("Too many encoded chunk length errors.")
+                f"key modulus length ({len(rsa_key.rsan)})."
 
-            continue
-
-        i += 1
+            )
 
         result += encoded_chunk
+
+        i += 1
 
     return result

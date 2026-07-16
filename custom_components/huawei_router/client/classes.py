@@ -953,7 +953,7 @@ def is_huawei_device(mac: str | None) -> bool:
     if not mac:
         return False
     mac_upper = mac.upper().replace("-", ":")
-    mac_prefix = mac_upper[:8]
+    mac_prefix = mac_upper.lower()[:8]
     return mac_prefix in HUAWEI_OUI_PREFIXES
 
 

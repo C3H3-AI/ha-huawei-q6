@@ -24,7 +24,6 @@ from .const import (
     DEFAULT_EVENT_ENTITIES,
     DEFAULT_TIME_CONTROL_SWITCHES,
     DEFAULT_SKIP_OFFLINE_DEVICES,
-    DEFAULT_AUTO_ASSOCIATE_DEVICES,
     DOMAIN,
     OPT_DEVICE_TRACKER,
     OPT_DEVICE_TRACKER_ZONES,
@@ -36,7 +35,6 @@ from .const import (
     OPT_WIFI_ACCESS_SWITCHES,
     OPT_TIME_CONTROL_SWITCHES,
     OPT_SKIP_OFFLINE_DEVICES,
-    OPT_AUTO_ASSOCIATE_DEVICES,
     PLATFORMS,
     STORAGE_VERSION,
 )
@@ -215,7 +213,6 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
         _LOGGER.debug("Migrating to version 7")
         updated_options[OPT_TIME_CONTROL_SWITCHES] = DEFAULT_TIME_CONTROL_SWITCHES
         updated_options[OPT_SKIP_OFFLINE_DEVICES] = DEFAULT_SKIP_OFFLINE_DEVICES
-        updated_options[OPT_AUTO_ASSOCIATE_DEVICES] = DEFAULT_AUTO_ASSOCIATE_DEVICES
         config_entry.version = 7
 
     hass.config_entries.async_update_entry(config_entry, data=updated_data, options=updated_options)

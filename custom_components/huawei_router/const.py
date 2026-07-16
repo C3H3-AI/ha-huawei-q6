@@ -34,7 +34,6 @@ OPT_EVENT_ENTITIES = "event_entities"
 
 OPT_TIME_CONTROL_SWITCHES = "time_control_switches"
 OPT_SKIP_OFFLINE_DEVICES = "skip_offline_devices"
-OPT_AUTO_ASSOCIATE_DEVICES = "auto_associate_devices"
 
 
 DEFAULT_HOST: Final = "192.168.3.1"
@@ -71,7 +70,6 @@ DEFAULT_EVENT_ENTITIES: Final = True
 
 DEFAULT_TIME_CONTROL_SWITCHES: Final = True
 DEFAULT_SKIP_OFFLINE_DEVICES: Final = True
-DEFAULT_AUTO_ASSOCIATE_DEVICES: Final = True
 
 
 ATTR_MANUFACTURER: Final = "Huawei"

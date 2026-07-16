@@ -13,7 +13,6 @@ from .const import (
     DEFAULT_TIME_CONTROL_SWITCHES,
     DEFAULT_URL_FILTER_SWITCHES,
     DEFAULT_WIFI_ACCESS_SWITCHES,
-    DEFAULT_AUTO_ASSOCIATE_DEVICES,
     OPT_DEVICE_TRACKER,
     OPT_DEVICE_TRACKER_ZONES,
     OPT_DEVICES_TAGS,
@@ -24,7 +23,6 @@ from .const import (
     OPT_TIME_CONTROL_SWITCHES,
     OPT_URL_FILTER_SWITCHES,
     OPT_WIFI_ACCESS_SWITCHES,
-    OPT_AUTO_ASSOCIATE_DEVICES,
 )
 
 # ---------------------------
@@ -122,11 +120,3 @@ class HuaweiIntegrationOptions:
             DEFAULT_SKIP_OFFLINE_DEVICES,
         )
 
-    @property
-    def auto_associate_devices(self) -> bool:
-        """Return option 'auto associate devices' value"""
-        return get_option(
-            self._config_entry,
-            OPT_AUTO_ASSOCIATE_DEVICES,
-            DEFAULT_AUTO_ASSOCIATE_DEVICES,
-        )

@@ -36,7 +36,6 @@ from .const import (
     DEFAULT_USER,
     DEFAULT_VERIFY_SSL,
     DEFAULT_WIFI_ACCESS_SWITCHES,
-    DEFAULT_AUTO_ASSOCIATE_DEVICES,
     DOMAIN,
     OPT_DEVICE_TRACKER,
     OPT_DEVICE_TRACKER_ZONES,
@@ -48,7 +47,6 @@ from .const import (
     OPT_TIME_CONTROL_SWITCHES,
     OPT_URL_FILTER_SWITCHES,
     OPT_WIFI_ACCESS_SWITCHES,
-    OPT_AUTO_ASSOCIATE_DEVICES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -113,7 +111,7 @@ class HuaweiControllerConfigFlow(ConfigFlow, domain=DOMAIN):
             except AuthenticationError as aex:
                 errors["base"] = aex.reason_code or "auth_general"
             except Exception as ex:
-                _LOGGER.warning("Setup failed: %s", {str(ex)})
+                _LOGGER.warning("Setup failed: %s", str(ex))
                 errors["base"] = "auth_general"
             finally:
                 await api.disconnect()
@@ -244,10 +242,6 @@ class HuaweiControllerOptionsFlowHandler(OptionsFlow):
                     vol.Required(
                         OPT_SKIP_OFFLINE_DEVICES,
                         default=self.options.get(OPT_SKIP_OFFLINE_DEVICES, DEFAULT_SKIP_OFFLINE_DEVICES),
-                    ): bool,
-                    vol.Required(
-                        OPT_AUTO_ASSOCIATE_DEVICES,
-                        default=self.options.get(OPT_AUTO_ASSOCIATE_DEVICES, DEFAULT_AUTO_ASSOCIATE_DEVICES),
                     ): bool,
                 },
             ),
