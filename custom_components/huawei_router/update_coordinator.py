@@ -882,6 +882,7 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     filter_mode,
                     interface_type=interface_type,
                     is_router=device_data.is_router,
+                    **device_data._data,
                 )
                 self._connected_devices[device.mac] = device
                 # new device = fire an event immediately
@@ -952,7 +953,6 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     connected_via=connected_via.get("name"),
                     ip_address=ip_address,
                     interface_type=interface_type,
-                    rssi=device_data.rssi,
                     is_guest=device_data.is_guest,
                     is_hilink=device_data.is_hilink,
                     is_router=device_data.is_router,
@@ -963,6 +963,7 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     upload_rate=get_readable_rate(device_data.upload_rate),
                     download_rate=get_readable_rate(device_data.download_rate),
                     uptime=device_data.uptime,
+                    **device_data._data,
                 )
             else:
                 device.update_device_data(
@@ -976,6 +977,7 @@ class HuaweiDataUpdateCoordinator(DataUpdateCoordinator):
                     is_guest=device_data.is_guest,
                     is_hilink=device_data.is_hilink,
                     is_router=device_data.is_router,
+                    **device_data._data,
                 )
         self._logger.debug("Connected devices updated")
 

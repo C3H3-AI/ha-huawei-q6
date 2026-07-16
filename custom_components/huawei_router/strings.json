@@ -119,6 +119,54 @@
                     "description": "Password to access the guest Wi-Fi network."
                 }
             }
+        },
+        "port_mapping_add": {
+            "name": "Add port mapping",
+            "description": "Add a port forwarding rule to the router.",
+            "fields": {
+                "internal_host": {
+                    "name": "Internal host",
+                    "description": "IP address of the device in the local network."
+                },
+                "internal_port": {
+                    "name": "Internal port",
+                    "description": "Port on the internal device."
+                },
+                "external_port": {
+                    "name": "External port",
+                    "description": "Port exposed to the internet."
+                },
+                "protocol": {
+                    "name": "Protocol",
+                    "description": "Transport protocol (TCP or UDP)."
+                },
+                "description": {
+                    "name": "Description",
+                    "description": "Human readable description of the mapping."
+                },
+                "enabled": {
+                    "name": "Enabled",
+                    "description": "Whether the mapping is enabled."
+                }
+            }
+        },
+        "port_mapping_remove": {
+            "name": "Remove port mapping",
+            "description": "Remove a port forwarding rule from the router.",
+            "fields": {
+                "external_port": {
+                    "name": "External port",
+                    "description": "External port of the rule to remove."
+                },
+                "protocol": {
+                    "name": "Protocol",
+                    "description": "Transport protocol (TCP or UDP)."
+                }
+            }
+        },
+        "port_mapping_list": {
+            "name": "List port mappings",
+            "description": "Return all current port forwarding rules."
         }
     },
     "selector": {

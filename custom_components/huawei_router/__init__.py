@@ -107,8 +107,54 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     await _async_update_primary_router_name(hass, config_entry, coordinator)
 
+    await _async_setup_frontend(hass, config_entry)
+
     await async_setup_services(hass, config_entry)
     return True
+
+
+_FRONTEND_CARD_URL = "/huawei_router/huawei-router-card.js"
+
+
+async def _async_setup_frontend(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    """Serve the bundled dashboard card and register it as a Lovelace resource.
+
+    Best-effort only: any failure is logged and ignored so integration setup
+    can never break because of the optional custom card. Stays compatible
+    across Home Assistant versions — the HTTP static-path API
+    (``register_static_path`` -> ``async_register_static_paths``) and the
+    Lovelace resource API have both changed over time.
+    """
+    import os
+
+    card_path = os.path.join(os.path.dirname(__file__), "www", "huawei-router-card.js")
+    if not os.path.exists(card_path):
+        return
+
+    # 1) Serve the card JS at a stable URL.
+    #    Modern HA (2024.2+) exposes ``hass.http.async_register_static_paths``
+    #    with ``StaticPathConfig``; older HA used ``register_static_path``.
+    try:
+        http = hass.http
+        if hasattr(http, "async_register_static_paths"):
+            from homeassistant.http import StaticPathConfig
+
+            await http.async_register_static_paths(
+                [StaticPathConfig(_FRONTEND_CARD_URL, card_path, cache_headers=False)]
+            )
+        elif hasattr(http, "register_static_path"):
+            http.register_static_path(_FRONTEND_CARD_URL, card_path, cache_headers=False)
+    except Exception as ex:  # noqa: BLE001 - best effort, never break setup
+        _LOGGER.debug("Could not register Huawei router card static path: %s", ex)
+
+    # 2) Register it as a Lovelace resource so the card is usable out of the box.
+    if "lovelace" in hass.config.components:
+        try:
+            await hass.components.lovelace.async_create_or_update_resource(
+                _FRONTEND_CARD_URL, "module"
+            )
+        except Exception as ex:  # noqa: BLE001 - best effort, never break setup
+            _LOGGER.debug("Could not auto-register Huawei router card resource: %s", ex)
 
 
 async def _async_update_primary_router_name(hass, config_entry, coordinator) -> None:

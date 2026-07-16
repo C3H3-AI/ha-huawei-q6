@@ -62,6 +62,51 @@
             },
             "packet_upload_speed": {
                 "name": "Packet Upload Speed"
+            },
+            "router_lan_ip": {
+                "name": "Router LAN IP"
+            },
+            "router_ip": {
+                "name": "Router IP Address"
+            },
+            "router_mac": {
+                "name": "Router MAC Address"
+            },
+            "connection_type": {
+                "name": "Connection Type"
+            },
+            "signal_strength": {
+                "name": "Signal Strength"
+            },
+            "connection_rate": {
+                "name": "Connection Rate"
+            },
+            "frequency": {
+                "name": "WiFi Band"
+            },
+            "dev_brands": {
+                "name": "Device Vendor"
+            },
+            "icon_type": {
+                "name": "Device Type"
+            },
+            "tx_data": {
+                "name": "Transmitted Data"
+            },
+            "rx_data": {
+                "name": "Received Data"
+            },
+            "parent_control": {
+                "name": "Parental Control"
+            },
+            "connected_via": {
+                "name": "Connected Via"
+            },
+            "ip_address": {
+                "name": "Device IP Address"
+            },
+            "mac_address": {
+                "name": "Device MAC Address"
             }
         }
     },

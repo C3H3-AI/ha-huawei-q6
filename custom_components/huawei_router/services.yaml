@@ -75,3 +75,61 @@ guest_network_setup:
       example: "K3k*eJWtFv!~ME4}"
       selector:
         text:
+
+port_mapping_add:
+  fields:
+    internal_host:
+      required: true
+      example: "192.168.3.50"
+      selector:
+        text:
+    internal_port:
+      required: true
+      example: 8080
+      selector:
+        number:
+    external_port:
+      required: true
+      example: 18080
+      selector:
+        number:
+    protocol:
+      required: true
+      example: "TCP"
+      default: "TCP"
+      selector:
+        select:
+          options:
+            - "TCP"
+            - "UDP"
+    description:
+      required: false
+      example: "My service"
+      selector:
+        text:
+    enabled:
+      required: false
+      example: true
+      default: true
+      selector:
+        boolean:
+
+port_mapping_remove:
+  fields:
+    external_port:
+      required: true
+      example: 18080
+      selector:
+        number:
+    protocol:
+      required: true
+      example: "TCP"
+      default: "TCP"
+      selector:
+        select:
+          options:
+            - "TCP"
+            - "UDP"
+
+port_mapping_list:
+  description: "List all current port forwarding mappings."

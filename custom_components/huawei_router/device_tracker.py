@@ -1,6 +1,7 @@
 """Support for Huawei routers as device tracker."""
 
 from __future__ import annotations
+import logging
 from typing import Any
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
@@ -10,9 +11,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .classes import ConnectedDevice
 from .client.classes import MAC_ADDR
+from .const import DOMAIN
 from .helpers import get_coordinator
 from .options import HuaweiIntegrationOptions
 from .update_coordinator import HuaweiDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 FILTER_ATTRS = ["connected_via_id", "vendor_class_id", "zone"]
 
@@ -58,13 +62,32 @@ def update_items(
     tracked: dict[MAC_ADDR, HuaweiTracker],
 ) -> None:
     """Update tracked device state from the hub."""
+    skip_offline = integration_options.skip_offline_devices
     new_tracked: list[HuaweiTracker] = []
     for mac, device in coordinator.connected_devices.items():
+        if skip_offline and not device.is_active:
+            continue
         if mac not in tracked:
             tracked[mac] = HuaweiTracker(device, integration_options, coordinator)
             new_tracked.append(tracked[mac])
     if new_tracked:
         async_add_entities(new_tracked)
+    # 初始清理：移除离线设备的旧设备追踪实体（与 sensor/switch 行为一致）
+    if skip_offline:
+        from homeassistant.helpers import entity_registry as er_mod
+
+        er = er_mod.async_get(coordinator.hass)
+        for mac, device in coordinator.connected_devices.items():
+            if device.is_active:
+                continue
+            for entity_entry in list(er.entities.values()):
+                if (
+                    entity_entry.platform == DOMAIN
+                    and entity_entry.unique_id
+                    and mac.lower().replace(":", "_") in entity_entry.unique_id.lower()
+                ):
+                    er.async_remove(entity_entry.entity_id)
+                    _LOGGER.debug("Cleanup offline device tracker: %s", entity_entry.entity_id)
 
 
 # ---------------------------

@@ -272,6 +272,67 @@ class ConnectedDevice:
         """Return the uptime in seconds if available."""
         return self._data.get("uptime")
 
+    def _raw_value(self, *keys: str) -> Any | None:
+        """Return the first available raw value from the given candidate keys.
+
+        The Huawei HostInfo API uses PascalCase keys. Different firmware
+        revisions may expose the same concept under slightly different names,
+        so we accept multiple candidates and return the first present one.
+        """
+        for key in keys:
+            value = self._data.get(key)
+            if value is not None:
+                return value
+        return None
+
+    @property
+    def total_tx(self) -> int | None:
+        """Return total transmitted bytes if available (HostInfo ``TxKBytes``)."""
+        value = self._raw_value("TxKBytes", "TotalTx", "TotalUp")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def total_rx(self) -> int | None:
+        """Return total received bytes if available (HostInfo ``RxKBytes``)."""
+        value = self._raw_value("RxKBytes", "TotalRx", "TotalDown")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def parental_control(self) -> bool | None:
+        """Return parental control status if available (HostInfo ``ParentControlEnable``)."""
+        return self._raw_value("ParentControlEnable", "ParentControl")
+
+    @property
+    def router_mac(self) -> MAC_ADDR | None:
+        """Return the MAC of the router this device is connected via.
+
+        HostInfo does not expose the upstream router MAC directly; the
+        topology-derived ``connected_via_id`` (router MAC or the primary
+        router constant) is the authoritative value used by the card/sensor.
+        """
+        return self.connected_via_id
+
+    @property
+    def connected_rate(self) -> float | None:
+        """Return the connection rate in Mbps if available (HostInfo ``rate``)."""
+        value = self._raw_value("rate", "ConnectRate", "ConnectionRate")
+        return float(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def frequency(self) -> str | None:
+        """Return the WiFi frequency band if available (HostInfo ``Frequency``)."""
+        return self._raw_value("Frequency")
+
+    @property
+    def vendor(self) -> str | None:
+        """Return the device vendor if available (HostInfo ``DevBrands``)."""
+        return self._raw_value("DevBrands", "ActualManu", "Vendor", "VendorName")
+
+    @property
+    def device_type(self) -> str | None:
+        """Return the device type if available (HostInfo ``ActualType``)."""
+        return self._raw_value("ActualType", "DeviceType", "Type")
+
     @property
     def tags(self) -> list[DEVICE_TAG]:
         """Return device tags list."""

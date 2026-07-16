@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.const import EntityCategory
 from homeassistant.core import callback
 
 from .sensor import HuaweiSensor, HuaweiWanSensorEntityDescription
@@ -41,7 +42,7 @@ class HuaweiRouterInfoSensor(HuaweiSensor):
 
     entity_description: HuaweiWanSensorEntityDescription
     _attr_native_value: str | None = None
-    _attr_entity_category = "diagnostic"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,

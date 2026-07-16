@@ -257,6 +257,54 @@
                     "description": "访问访客Wi-Fi网络的密码。"
                 }
             }
+        },
+        "port_mapping_add": {
+            "name": "添加端口映射",
+            "description": "在路由器上添加一条端口转发规则。",
+            "fields": {
+                "internal_host": {
+                    "name": "内网主机",
+                    "description": "局域网内设备的 IP 地址。"
+                },
+                "internal_port": {
+                    "name": "内网端口",
+                    "description": "内部设备上的端口。"
+                },
+                "external_port": {
+                    "name": "外网端口",
+                    "description": "对外暴露的端口。"
+                },
+                "protocol": {
+                    "name": "协议",
+                    "description": "传输协议（TCP 或 UDP）。"
+                },
+                "description": {
+                    "name": "描述",
+                    "description": "端口映射的可读描述。"
+                },
+                "enabled": {
+                    "name": "启用",
+                    "description": "是否启用该映射。"
+                }
+            }
+        },
+        "port_mapping_remove": {
+            "name": "移除端口映射",
+            "description": "从路由器上移除一条端口转发规则。",
+            "fields": {
+                "external_port": {
+                    "name": "外网端口",
+                    "description": "要移除规则的外网端口。"
+                },
+                "protocol": {
+                    "name": "协议",
+                    "description": "传输协议（TCP 或 UDP）。"
+                }
+            }
+        },
+        "port_mapping_list": {
+            "name": "列出端口映射",
+            "description": "返回当前所有端口转发规则。"
         }
     },
     "selector": {
